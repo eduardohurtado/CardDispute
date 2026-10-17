@@ -16,6 +16,8 @@ async function bootstrap() {
         prefetchCount: 10,
         queueOptions: {
           durable: true,
+          deadLetterExchange: 'dlx',
+          deadLetterRoutingKey: 'dlq',
         },
       },
     },

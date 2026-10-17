@@ -1,0 +1,28 @@
+import {
+  NOTIFICATION_TOPIC_V1,
+  RETRY_LIMIT,
+  RETRY_BASE_DELAY_MS,
+} from './constants.js';
+
+export interface EnvVars {
+  RABBITMQ_CONNECTION_STRING: string;
+  RABBITMQ_NOTIFICATION_QUEUE_NAME: string;
+  NOTIFICATION_TOPIC_V1: string;
+  RETRY_LIMIT: number;
+  RETRY_BASE_DELAY_MS: number;
+}
+
+export function validateEnv(raw: Record<string, any>): EnvVars {
+  if (!raw.RABBITMQ_CONNECTION_STRING)
+    throw new Error('RABBITMQ_CONNECTION_STRING is required');
+  if (!raw.RABBITMQ_NOTIFICATION_QUEUE_NAME)
+    throw new Error('RABBITMQ_NOTIFICATION_QUEUE_NAME is required');
+
+  return {
+    RABBITMQ_CONNECTION_STRING: raw.RABBITMQ_CONNECTION_STRING,
+    RABBITMQ_NOTIFICATION_QUEUE_NAME: raw.RABBITMQ_NOTIFICATION_QUEUE_NAME,
+    NOTIFICATION_TOPIC_V1,
+    RETRY_LIMIT,
+    RETRY_BASE_DELAY_MS,
+  };
+}
