@@ -11,11 +11,15 @@ import { type DisputeResolvedEvent } from '../types.js';
 import { NOTIFICATION_TOPIC_V1, retryQueueName } from '../config/constants.js';
 import { EnvVars } from '../config/env.js';
 import { ConfigService } from '@nestjs/config';
+import { MessageQueueService } from '../message_queue/message-queue.service.js';
 
 export const DUPLICATED_RESOLVED_NOTIFICATION_MESSAGE =
   'We found support for the duplicate charge.';
 export const NOT_SUPPORTED_RESOLVED_NOTIFICATION_MESSAGE =
   'We could not support the duplicate charge claim.';
+
+export const backoffMs = (base: number, attempt: number) =>
+  base * 2 ** (attempt - 1);
 
 @Controller()
 export class NotificationController {
@@ -23,7 +27,7 @@ export class NotificationController {
   #notifier: INotificationChannel;
   constructor(
     @Inject(INotificationChannel) notifier: INotificationChannel,
-    private readonly config: ConfigService<EnvVars, true>,
+    private readonly queueService: MessageQueueService,
   ) {
     this.#notifier = notifier;
   }
@@ -44,32 +48,18 @@ export class NotificationController {
             : NOT_SUPPORTED_RESOLVED_NOTIFICATION_MESSAGE,
         subject: `Your dispute ${event.dispute_id} has been resolved`,
       });
-      channel.ack(message);
+      await this.queueService.markAsProcessed(channel, message);
     } catch (error) {
       this.#logger.error(error);
-      const currentAttempt =
-        message.properties.headers?.['x-current-attempt'] || 0;
-      const retryLimit = this.config.getOrThrow<number>('RETRY_LIMIT');
-      if (currentAttempt >= retryLimit) {
-        channel.nack(message, false, false); // Reject without requeue (DLQ)
+      const hasExceededRetries = await this.queueService.hasExceededRetries(message);
+      if (hasExceededRetries) {
+        await this.queueService.sendToDLQ(channel, message);
       } else {
-        const nextAttemptNumber = currentAttempt + 1;
-        this.#logger.log(
-          `Retry ${nextAttemptNumber} for notification ${event.event_id}`,
+        await this.queueService.retry(
+          channel,
+          message,
+          event.event_id,
         );
-        const headers = {
-          ...message.properties.headers,
-          'x-current-attempt': nextAttemptNumber,
-        };
-        const mainQueue = this.config.getOrThrow<string>(
-          'RABBITMQ_NOTIFICATION_QUEUE_NAME',
-        );
-        channel.sendToQueue(
-          retryQueueName(mainQueue, nextAttemptNumber),
-          message.content,
-          { headers, persistent: true },
-        );
-        channel.ack(message);
       }
     }
   }
