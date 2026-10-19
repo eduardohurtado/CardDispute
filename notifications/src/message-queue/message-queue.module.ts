@@ -15,20 +15,25 @@ export class MessageQueueModule implements OnModuleInit {
     );
     const channel = await connection.createChannel();
     const limit = this.config.getOrThrow<number>('RETRY_LIMIT');
-    // const baseDelay = this.config.getOrThrow<number>('RETRY_BASE_DELAY_MS');
-    const mainQueue = this.config.getOrThrow<string>(
-      'RABBITMQ_QUEUE_NAME',
+    const mainQueue = this.config.getOrThrow<string>('RABBITMQ_QUEUE_NAME');
+    const mainExchange = this.config.getOrThrow<string>(
+      'RABBITMQ_EXCHANGE_NAME',
     );
-    const mainExchange = this.config.getOrThrow<string>("RABBITMQ_EXCHANGE_NAME")
-
     try {
+      const dlx = `${mainExchange}.dlx`;
+      const dlq = `${mainQueue}.dlq`;
+
+      await channel.assertExchange(dlx, 'topic', { durable: true });
+      await channel.assertQueue(dlq, { durable: true });
+      await channel.bindQueue(dlq, dlx, dlq);
       for (let attempt = 1; attempt <= limit; attempt++) {
         await channel.assertQueue(retryQueueName(mainQueue, attempt), {
           durable: true,
-          // Note: This is not easy to change once the queue is created
-          // messageTtl: backoffMs(baseDelay, attempt),
-          // default exchange
-          deadLetterExchange: mainExchange,
+          // Once the per-message TTL expires the message is dead-lettered to
+          // the default exchange, which routes by queue name straight back to
+          // the main queue. Routing through the main topic exchange would drop
+          // the message, since the queue name is not a valid binding key there.
+          deadLetterExchange: '',
           deadLetterRoutingKey: mainQueue,
         });
       }

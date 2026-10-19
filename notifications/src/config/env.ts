@@ -12,6 +12,8 @@ export interface EnvVars {
   RABBITMQ_ROUTING_KEY: string;
   RETRY_LIMIT: number;
   RETRY_BASE_DELAY_MS: number;
+  BACKEND_AUTHORIZATION_KEY: string;
+  BACKEND_API_BASE_URL: string;
 }
 
 export function validateEnv(raw: Record<string, any>): EnvVars {
@@ -23,12 +25,18 @@ export function validateEnv(raw: Record<string, any>): EnvVars {
     throw new Error('RABBITMQ_EXCHANGE_NAME is required');
   if (!raw.RABBITMQ_ROUTING_KEY)
     throw new Error('RABBITMQ_ROUTING_KEY is required');
+  if (!raw.BACKEND_AUTHORIZATION_KEY)
+    throw new Error('BACKEND_AUTHORIZATION_KEY is required');
+  if (!raw.BACKEND_API_BASE_URL)
+    throw new Error('BACKEND_API_BASE_URL is required');
 
   return {
     RABBITMQ_CONNECTION_STRING: raw.RABBITMQ_CONNECTION_STRING,
     RABBITMQ_QUEUE_NAME: raw.RABBITMQ_QUEUE_NAME,
     RABBITMQ_EXCHANGE_NAME: raw.RABBITMQ_EXCHANGE_NAME,
     RABBITMQ_ROUTING_KEY: raw.RABBITMQ_ROUTING_KEY,
+    BACKEND_AUTHORIZATION_KEY: raw.BACKEND_AUTHORIZATION_KEY,
+    BACKEND_API_BASE_URL: raw.BACKEND_API_BASE_URL,
     NOTIFICATION_TOPIC_V1,
     RETRY_LIMIT,
     RETRY_BASE_DELAY_MS,

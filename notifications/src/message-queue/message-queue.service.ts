@@ -17,24 +17,18 @@ export class MessageQueueService {
   }
 
   async hasExceededRetries(message: Message) {
-    const currentAttempt =
-      message.properties.headers?.['x-current-attempt'] || 0;
     const retryLimit = this.config.getOrThrow<number>('RETRY_LIMIT');
-    return currentAttempt >= retryLimit;
+    return this.#currentAttemptOf(message) >= retryLimit;
   }
 
   async retry(channel: Channel, message: Message, eventId: string) {
-    const currentAttempt =
-      +message.properties.headers?.['x-current-attempt'] || 0;
-    const nextAttemptNumber = currentAttempt + 1;
+    const nextAttemptNumber = this.#currentAttemptOf(message) + 1;
     this.#logger.log(`Retry ${nextAttemptNumber} for notification ${eventId}`);
     const headers = {
       ...message.properties.headers,
       'x-current-attempt': nextAttemptNumber,
     };
-    const mainQueue = this.config.getOrThrow<string>(
-      'RABBITMQ_QUEUE_NAME',
-    );
+    const mainQueue = this.config.getOrThrow<string>('RABBITMQ_QUEUE_NAME');
     const baseDelay = this.config.getOrThrow<number>('RETRY_BASE_DELAY_MS');
     // NOTE: Maybe we should use a confirmation channel?
     channel.sendToQueue(
@@ -48,7 +42,11 @@ export class MessageQueueService {
     );
     await this.markAsProcessed(channel, message);
   }
+
   async sendToDLQ(channel: Channel, message: Message) {
     channel.nack(message, false, false);
+  }
+  #currentAttemptOf(message: Message) {
+    return +message.properties.headers?.['x-current-attempt'] || 0;
   }
 }

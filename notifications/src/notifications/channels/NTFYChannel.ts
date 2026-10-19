@@ -3,7 +3,10 @@ import {
   INotificationChannel,
   NotificationMessage,
 } from './channel.interface.js';
-import { NotificationChannelSendError } from './channel.errors.js';
+import {
+  NETWORK_ERROR_STATUS,
+  NotificationChannelSendError,
+} from './channel.errors.js';
 
 const NTFY_API_BASE_URL = 'https://ntfy.sh';
 const TIMEOUT_MS = 5000;
@@ -18,10 +21,10 @@ export class NTFYNotificationChannel implements INotificationChannel {
   // Just to ensure a unique public topic
   #topic = 'techm-card-dispute-alerts-mopeXL0441';
   async send(event: NotificationMessage): Promise<void> {
+    let res: Response;
     try {
       // TODO: Maybe implement an action like opening the URL when clicking on it?
-      // Also I can't find docs about API errors here, so assume everything should be retryable
-      const res = await fetch(`${NTFY_API_BASE_URL}/${this.#topic}`, {
+      res = await fetch(`${NTFY_API_BASE_URL}/${this.#topic}`, {
         method: 'POST',
         body: event.body,
         headers: {
@@ -29,13 +32,16 @@ export class NTFYNotificationChannel implements INotificationChannel {
         },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-      if (!res.ok) {
-        throw new Error(`Failed to send notification via NTFY: ${res.status}`);
-      }
-      this.#logger.log(`Notification sent via NTFY`);
-    } catch (error) {
-      this.#logger.error(error);
-      throw new NotificationChannelSendError('NTFY');
+    } catch (cause) {
+      // Network failures and timeouts carry no status, they are always retryable.
+      throw new NotificationChannelSendError('NTFY', NETWORK_ERROR_STATUS, {
+        cause,
+      });
     }
+
+    if (!res.ok) {
+      throw new NotificationChannelSendError('NTFY', res.status);
+    }
+    this.#logger.log(`Notification sent via NTFY`);
   }
 }
