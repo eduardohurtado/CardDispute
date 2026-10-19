@@ -23,11 +23,7 @@ export class MessageQueueService {
     return currentAttempt >= retryLimit;
   }
 
-  async retry(
-    channel: Channel,
-    message: Message,
-    eventId: string,
-  ) {
+  async retry(channel: Channel, message: Message, eventId: string) {
     const currentAttempt =
       +message.properties.headers?.['x-current-attempt'] || 0;
     const nextAttemptNumber = currentAttempt + 1;
@@ -37,9 +33,10 @@ export class MessageQueueService {
       'x-current-attempt': nextAttemptNumber,
     };
     const mainQueue = this.config.getOrThrow<string>(
-      'RABBITMQ_NOTIFICATION_QUEUE_NAME',
+      'RABBITMQ_QUEUE_NAME',
     );
     const baseDelay = this.config.getOrThrow<number>('RETRY_BASE_DELAY_MS');
+    // NOTE: Maybe we should use a confirmation channel?
     channel.sendToQueue(
       retryQueueName(mainQueue, nextAttemptNumber),
       message.content,
@@ -49,7 +46,7 @@ export class MessageQueueService {
         expiration: backoffMs(baseDelay, nextAttemptNumber),
       },
     );
-    await this.markAsProcessed(channel, message)
+    await this.markAsProcessed(channel, message);
   }
   async sendToDLQ(channel: Channel, message: Message) {
     channel.nack(message, false, false);

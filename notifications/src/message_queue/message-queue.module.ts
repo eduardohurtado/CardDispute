@@ -17,8 +17,9 @@ export class MessageQueueModule implements OnModuleInit {
     const limit = this.config.getOrThrow<number>('RETRY_LIMIT');
     // const baseDelay = this.config.getOrThrow<number>('RETRY_BASE_DELAY_MS');
     const mainQueue = this.config.getOrThrow<string>(
-      'RABBITMQ_NOTIFICATION_QUEUE_NAME',
+      'RABBITMQ_QUEUE_NAME',
     );
+    const mainExchange = this.config.getOrThrow<string>("RABBITMQ_EXCHANGE_NAME")
 
     try {
       for (let attempt = 1; attempt <= limit; attempt++) {
@@ -27,7 +28,7 @@ export class MessageQueueModule implements OnModuleInit {
           // Note: This is not easy to change once the queue is created
           // messageTtl: backoffMs(baseDelay, attempt),
           // default exchange
-          deadLetterExchange: '',
+          deadLetterExchange: mainExchange,
           deadLetterRoutingKey: mainQueue,
         });
       }

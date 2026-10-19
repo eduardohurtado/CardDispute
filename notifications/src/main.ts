@@ -11,13 +11,15 @@ async function bootstrap() {
       logger: new ConsoleLogger({ json: true }),
       options: {
         urls: [process.env.RABBITMQ_CONNECTION_STRING || ''],
-        queue: process.env.RABBITMQ_NOTIFICATION_QUEUE_NAME,
+        queue: process.env.RABBITMQ_QUEUE_NAME,
         noAck: false,
         prefetchCount: 10,
+        exchange: process.env.RABBITMQ_EXCHANGE_NAME,
+        routingKey: process.env.RABBITMQ_ROUTING_KEY,
         queueOptions: {
           durable: true,
-          deadLetterExchange: 'dlx',
-          deadLetterRoutingKey: 'dlq',
+          deadLetterExchange: `${process.env.RABBITMQ_EXCHANGE_NAME}.dlx`,
+          deadLetterRoutingKey: `${process.env.RABBITMQ_QUEUE_NAME}.dlq`,
         },
       },
     },
@@ -25,3 +27,4 @@ async function bootstrap() {
   await app.listen();
 }
 await bootstrap();
+|

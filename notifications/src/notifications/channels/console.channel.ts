@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   INotificationChannel,
   NotificationMessage,
@@ -6,7 +6,8 @@ import {
 
 @Injectable()
 export class JSONConsoleNotificationChannel implements INotificationChannel {
+  #logger = new Logger(JSONConsoleNotificationChannel.name);
   async send(event: NotificationMessage): Promise<void> {
-    console.log(event);
+    this.#logger.log(event);
   }
 }
