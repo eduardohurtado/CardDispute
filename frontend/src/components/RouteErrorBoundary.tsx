@@ -1,5 +1,5 @@
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
-import { paths } from '@/app/paths';
+import { paths } from '@/routes/paths';
 
 export function RouteErrorBoundary() {
   const error = useRouteError();

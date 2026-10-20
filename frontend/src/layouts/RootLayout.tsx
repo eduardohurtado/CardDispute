@@ -1,5 +1,5 @@
 import { NavLink, Outlet, ScrollRestoration, useNavigation } from 'react-router';
-import { paths } from '@/app/paths';
+import { paths } from '@/routes/paths';
 
 export function RootLayout() {
   const navigation = useNavigation();

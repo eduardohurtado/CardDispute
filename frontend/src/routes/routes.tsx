@@ -1,5 +1,5 @@
 import type { RouteObject } from 'react-router';
-import { paths } from '@/app/paths';
+import { paths } from '@/routes/paths';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { RootLayout } from '@/layouts/RootLayout';
 import { NotFoundPage } from '@/pages/NotFoundPage';
