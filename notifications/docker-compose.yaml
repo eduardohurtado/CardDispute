@@ -1,0 +1,38 @@
+services:
+  notifications:
+    container_name: "notifications"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # TODO: these should be shared env vars so the producer also has them
+    environment:
+      RABBITMQ_CONNECTION_STRING: "amqp://rabbitmq:5672"
+      RABBITMQ_QUEUE_NAME: "card-dispute.notifications"
+      RABBITMQ_EXCHANGE_NAME: "card-dispute.events"
+      RABBITMQ_ROUTING_KEY: "dispute.#"
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    container_name: "rabbitmq"
+    ports:
+      - 5672:5672
+      - 15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    # for durable queues
+    volumes:
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 3s
+      retries: 30
