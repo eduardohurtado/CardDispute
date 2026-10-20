@@ -5,9 +5,12 @@
 /coverage
 
 # production
-/frontend/build
+/build
+/dist
 
 # misc
 .DS_Store
 .env
+.env.*.local
+*.tsbuildinfo
 npm-debug.log
