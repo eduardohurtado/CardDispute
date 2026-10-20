@@ -1,0 +1,44 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.app-title {
+  font-weight: 600;
+}
+
+.app-header nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-header nav a.active {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.app-main {
+  padding: 1.5rem;
+}
+
+.route-progress {
+  height: 2px;
+  background: #2563eb;
+}
