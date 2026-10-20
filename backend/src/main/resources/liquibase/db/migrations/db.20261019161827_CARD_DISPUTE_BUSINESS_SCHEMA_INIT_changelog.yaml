@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261019161827-1
+      author: jnavarro1285
+      changes:
+        - sqlFile:
+            path: ../sql/001-Initial-schema.sql
+            relativeToChangelogFile: true
