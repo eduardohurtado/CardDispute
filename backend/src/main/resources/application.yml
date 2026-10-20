@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: card-dispute-application
+  data:
+    jpa:
+      repositories:
+        enabled: false
+  liquibase:
+    enabled: false
+
+camunda:
+  bpm:
+    admin-user:
+      id: demo
+      password: demo
+    database:
+      type: mssql
+      schema-update: true
+      schema-name: card_dispute_camunda_schema
+      table-prefix: card_dispute_camunda_schema.
+    default-serialization-format: application/json
+    generic-properties:
+      properties:
+        history-time-to-live: P1D
+
+logging:
+  level:
+    org.camunda.bpm.engine: info
+    org.camunda.bpm: info
+
+application:
+  datasource:
+    camunda:
+      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      username: card_dispute_camunda_login
+      password: ${CARD_DISPUTE_CAMUNDA_PASSWORD:changeme}
+    card-dispute:
+      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      username: card_dispute_business_login
+      password: ${CARD_DISPUTE_BUSINESS_PASSWORD:changeme}
+    liquibase:
+      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      username: card_dispute_liquibase_login
+      password: ${CARD_DISPUTE_LIQUIBASE_PASSWORD:changeme}
+  liquibase:
+    change-log: classpath:liquibase/db/db.changelog-master.yaml
+    default-schema: card_dispute_business_schema
+    liquibase-schema: card_dispute_liquibase_schema
+

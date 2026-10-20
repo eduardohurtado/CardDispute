@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: ./migrations/db.20261019161827_CARD_DISPUTE_BUSINESS_SCHEMA_INIT_changelog.yaml
+      relativeToChangelogFile: true
+      context: db-init
