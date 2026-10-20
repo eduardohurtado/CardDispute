@@ -1,0 +1,85 @@
+
+# ==========================================
+# Java
+# ==========================================
+*.class
+*.log
+*.ctxt
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# JVM crash reports
+hs_err_pid*
+replay_pid*
+
+# ==========================================
+# IntelliJ IDEA
+# ==========================================
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.idea_modules/
+
+# ==========================================
+# Maven
+# ==========================================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Maven Wrapper (if JAR is included)
+!.mvn/wrapper/maven-wrapper.jar
+
+# ==========================================
+# Local scripts
+# ==========================================
+/scripts/
+
+# ==========================================
+# Environment variables and local config
+# ==========================================
+.env
+.env.*
+!.env.example
+
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# ==========================================
+# macOS
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ==========================================
+# Windows
+# ==========================================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# ==========================================
+# Linux / Editor temporary files
+# ==========================================
+*~
+.fuse_hidden*
+.directory
+.Trash-*/
+.trash/
