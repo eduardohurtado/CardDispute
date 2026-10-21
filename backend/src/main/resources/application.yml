@@ -49,4 +49,6 @@ application:
     change-log: classpath:liquibase/db/db.changelog-master.yaml
     default-schema: card_dispute_business_schema
     liquibase-schema: card_dispute_liquibase_schema
+    # Empty = run everything (db-init + demo-seed). Set to "db-init" to skip synthetic data.
+    contexts: ${CARD_DISPUTE_LIQUIBASE_CONTEXTS:}
 

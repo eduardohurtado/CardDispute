@@ -7,3 +7,7 @@ databaseChangeLog:
       file: ./migrations/db.20261021100000_DISPUTE_CASE_CONSTRAINTS_changelog.yaml
       relativeToChangelogFile: true
       context: db-init
+  - include:
+      file: ./migrations/db.20261021100500_DEMO_SEED_changelog.yaml
+      relativeToChangelogFile: true
+      context: demo-seed
