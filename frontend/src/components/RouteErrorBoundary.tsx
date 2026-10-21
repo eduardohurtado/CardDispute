@@ -15,10 +15,10 @@ export function RouteErrorBoundary() {
   }
 
   return (
-    <section role="alert" className="app-main">
-      <h1>{title}</h1>
-      <p>{message}</p>
-      <Link to={paths.home}>Back to home</Link>
+    <section role="alert" className="space-y-4 p-6">
+      <h1 className="text-2xl font-bold">{title}</h1>
+      <p className="text-gray-600">{message}</p>
+      <Link to={paths.home} className="text-blue-600 underline hover:text-blue-800">Back to home</Link>
     </section>
   );
 }
