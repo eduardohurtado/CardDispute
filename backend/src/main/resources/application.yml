@@ -55,3 +55,19 @@ application:
     # Empty = run everything (db-init + demo-seed). Set to "db-init" to skip synthetic data.
     contexts: ${CARD_DISPUTE_LIQUIBASE_CONTEXTS:}
 
+
+  security:
+    # Synthetic demo identities. customer-id must exist in dispute customer seed data.
+    demo-users:
+      - username: customer01
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: CUSTOMER
+        customer-id: 11111111-1111-1111-1111-000000000001
+      - username: customer02
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: CUSTOMER
+        customer-id: 11111111-1111-1111-1111-000000000002
+      - username: analyst01
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: DISPUTE_ANALYST
+
