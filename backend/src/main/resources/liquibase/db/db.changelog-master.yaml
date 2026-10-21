@@ -3,3 +3,7 @@ databaseChangeLog:
       file: ./migrations/db.20261019161827_CARD_DISPUTE_BUSINESS_SCHEMA_INIT_changelog.yaml
       relativeToChangelogFile: true
       context: db-init
+  - include:
+      file: ./migrations/db.20261021100000_DISPUTE_CASE_CONSTRAINTS_changelog.yaml
+      relativeToChangelogFile: true
+      context: db-init
