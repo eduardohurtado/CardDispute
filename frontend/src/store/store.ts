@@ -8,15 +8,26 @@ export const rootReducer = combineSlices(uiSlice, baseApi);
 
 export type RootState = ReturnType<typeof rootReducer>;
 
+export interface MakeStoreOptions {
+  /**
+   * Whether RTK Query refetches when the window regains focus.
+   * Tests turn it off so a background refetch never races an assertion.
+   */
+  refetchOnFocus?: boolean;
+}
+
 /** Creates a new store. The app uses one instance; tests create a fresh one each time. */
-export function makeStore(preloadedState?: Partial<RootState>) {
+export function makeStore(preloadedState?: Partial<RootState>, options: MakeStoreOptions = {}) {
   const store = configureStore({
     reducer: rootReducer,
     preloadedState,
     middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(baseApi.middleware),
   });
-  // Lets RTK Query refetch on window focus / network reconnect.
-  setupListeners(store.dispatch);
+  // Lets RTK Query refetch on window focus / network reconnect. Tests skip it
+  // so a background refetch never races an assertion.
+  if (options.refetchOnFocus ?? true) {
+    setupListeners(store.dispatch);
+  }
   return store;
 }
 

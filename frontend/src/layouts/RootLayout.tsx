@@ -35,6 +35,9 @@ export function RootLayout() {
             <NavLink to={paths.home} end className={navLinkClass}>
               Home
             </NavLink>
+            <NavLink to={paths.disputes} end className={navLinkClass}>
+              My Disputes
+            </NavLink>
           </nav>
         )}
         <main className="flex-1 p-6">

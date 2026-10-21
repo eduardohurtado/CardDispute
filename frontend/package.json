@@ -8,10 +8,12 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:run": "vitest run",
     "typecheck": "tsc -b"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.13.0",
+    "clsx": "^2.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-redux": "^9.3.0",
@@ -28,9 +30,15 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "jsdom": "^29.1.1",
+    "msw": "^3.0.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
