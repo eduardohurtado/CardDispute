@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261021100000-1
+      author: jhernandez
+      changes:
+        - sqlFile:
+            path: ../sql/002-Dispute-case-constraints.sql
+            relativeToChangelogFile: true

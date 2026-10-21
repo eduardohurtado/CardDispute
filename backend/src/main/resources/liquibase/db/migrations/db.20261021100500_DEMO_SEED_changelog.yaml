@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261021100500-1
+      author: jhernandez
+      comment: Synthetic demo customers and card transactions
+      changes:
+        - sqlFile:
+            path: ../sql/003-Demo-seed.sql
+            relativeToChangelogFile: true
+            # The script declares a variable, so it must run as a single batch
+            splitStatements: false

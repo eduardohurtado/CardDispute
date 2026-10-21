@@ -33,6 +33,8 @@ public class LiquibaseConfig {
         liquibase.setChangeLog(properties.changeLog());
         liquibase.setLiquibaseSchema(properties.liquibaseSchema());
         liquibase.setChangeLogParameters(Map.of(businessSchemaName, properties.defaultSchema()));
+        // When no contexts are configured Liquibase runs every changeset (schema + demo seed)
+        liquibase.setContexts(properties.contexts());
 
         return liquibase;
     }
@@ -41,6 +43,7 @@ public class LiquibaseConfig {
     public record LiquibaseProperties(
             String changeLog,
             String defaultSchema,
-            String liquibaseSchema
+            String liquibaseSchema,
+            String contexts
     ) {}
 }

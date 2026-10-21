@@ -7,6 +7,9 @@ spring:
         enabled: false
   liquibase:
     enabled: false
+  mvc:
+    problemdetails:
+      enabled: true
 
 camunda:
   bpm:
@@ -49,4 +52,33 @@ application:
     change-log: classpath:liquibase/db/db.changelog-master.yaml
     default-schema: card_dispute_business_schema
     liquibase-schema: card_dispute_liquibase_schema
+    # Empty = run everything (db-init + demo-seed). Set to "db-init" to skip synthetic data.
+    contexts: ${CARD_DISPUTE_LIQUIBASE_CONTEXTS:}
+
+  # Synthetic POC rules
+  dispute:
+    rules:
+      eligibility-window: P60D
+      duplicate-match-window: PT1H
+      review-match-window: PT24H
+      high-value-thresholds:
+        COP: 2000000
+        USD: 500
+
+
+
+  security:
+    # Synthetic demo identities. customer-id must exist in dispute customer seed data.
+    demo-users:
+      - username: customer01
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: CUSTOMER
+        customer-id: 11111111-1111-1111-1111-000000000001
+      - username: customer02
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: CUSTOMER
+        customer-id: 11111111-1111-1111-1111-000000000002
+      - username: analyst01
+        password: ${DEMO_USER_PASSWORD:demo}
+        role: DISPUTE_ANALYST
 

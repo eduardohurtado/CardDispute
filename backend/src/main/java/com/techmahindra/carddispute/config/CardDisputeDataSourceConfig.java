@@ -42,7 +42,11 @@ public class CardDisputeDataSourceConfig {
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 
         Map<String, Object> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "update");
+        // Liquibase owns the business schema; Hibernate must not alter it
+        properties.put("hibernate.hbm2ddl.auto", "none");
+        // Instant <-> DATETIME2 stored as UTC
+        properties.put("hibernate.type.preferred_instant_jdbc_type", "TIMESTAMP");
+        properties.put("hibernate.jdbc.time_zone", "UTC");
         properties.put("hibernate.dialect", "org.hibernate.dialect.SQLServerDialect");
         properties.put("hibernate.default_schema", "card_dispute_business_schema");
         em.setJpaPropertyMap(properties);
