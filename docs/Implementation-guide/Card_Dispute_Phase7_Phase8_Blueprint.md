@@ -8,6 +8,7 @@
 ## 0. Baseline and intentional design choices
 
 - Java 17, Spring Boot 3.5.x, Camunda 7.24 Community Edition embedded, SQL Server 2022, RabbitMQ, React/TypeScript, ELK, Docker Compose, GitHub Actions.
+- Frontend (already bootstrapped in `frontend/`, see `frontend/README.md`): React 19 + TypeScript 5 (strict), Vite 8, Tailwind CSS v4, React Router v7 (data mode), Redux Toolkit 2 + RTK Query, Vitest + Testing Library. Requires Node.js 22.13+.
 - **Node.js has been included** as a small RabbitMQ consumer for mock notifications because the team explicitly wants hands-on practice with the client's stack. It owns no core dispute rules or case state.
 - One Java deployable (modular monolith), one React frontend, one small Node worker. Not a microservices-based banking platform.
 - Camunda is embedded in Spring Boot; `camunda` BPM tables are managed by Camunda and **not** recreated as JPA entities. Business tables are separated logically in schema `dispute`; for easiest Camunda integration, determine runtime schema/default schema during bootstrap rather than assuming separate Camunda schema configuration is automatic.
@@ -258,41 +259,61 @@ card-dispute/
 
 **Implementation guidelines:** Controllers receive/validate HTTP requests and call services; services own business rules and transaction boundaries; repositories access SQL Server through Spring Data JPA; entities represent persistence; DTOs define API contracts. Modules call one another through ordinary Spring service methods, not internal HTTP. A concrete `DisputeService` is enough; do not create `DisputeServiceImpl` by default. Keep JPA entities out of REST responses. Camunda delegates remain thin; do not duplicate business rules in BPMN. A custom `CamundaConfig` is unnecessary if starter properties suffice. Liquibase manages only business tables; Camunda manages its own engine tables.
 
-## 7.4 Frontend structure (feature-based React SPA, not a modular monolith backend)
+## 7.4 Frontend structure (React SPA, not a modular monolith backend)
+
+The frontend skeleton already exists in `frontend/`; `frontend/README.md` is the source of truth for setup, scripts and conventions. It is a single SPA organized **by layer** (`pages/`, `components/`, `store/`, `routes/`), not by feature folder. Files marked _(planned)_ are the screens and APIs this POC still has to add, following the "Adding a feature" steps in the README.
 
 ```
 frontend/
-├── package.json
-├── src/
-│   ├── app/
-│   │   ├── router/                       # routes/guards
-│   │   ├── providers/                    # HTTP/query context
-│   │   └── App.tsx
-│   ├── features/
-│   │   ├── customer-transactions/
-│   │   │   ├── api/                       # browse synthetic transactions
-│   │   │   ├── components/
-│   │   │   └── pages/
-│   │   ├── disputes/
-│   │   │   ├── api/                       # create/list/get APIs
-│   │   │   ├── components/                # status badge, timeline, form
-│   │   │   ├── hooks/
-│   │   │   ├── pages/                     # SubmitDispute, MyDisputes, Detail
-│   │   │   └── types/
-│   │   └── analyst-review/
-│   │       ├── api/                       # queue/decision APIs
-│   │       ├── components/
-│   │       └── pages/                     # WorkQueue, ReviewDetail
-│   ├── shared/
-│   │   ├── api/                           # HTTP client/error mapping
-│   │   ├── components/                    # layout/buttons/forms
-│   │   ├── auth/                          # synthetic role session
-│   │   └── utils/                         # date/amount format
-│   └── main.tsx
-└── tests/
+├── index.html                       # HTML entry; loads src/main.tsx
+├── vite.config.ts                   # Vite, Tailwind, @/ alias, Vitest config
+├── .env.example                     # VITE_API_URL (default /api)
+├── public/                          # static files (favicon, manifest)
+└── src/
+    ├── main.tsx                     # <Provider store> → <RouterProvider router>
+    ├── index.css                    # Tailwind import + base styles
+    ├── routes/
+    │   ├── paths.ts                 # URL constants (no hard-coded URLs)
+    │   ├── routes.tsx               # route tree; pages loaded with `lazy`
+    │   └── router.tsx               # createBrowserRouter(routes)
+    ├── layouts/
+    │   └── RootLayout.tsx           # header, sidebar, <Outlet />, toasts
+    ├── pages/
+    │   ├── HomePage.tsx
+    │   ├── NotFoundPage.tsx
+    │   ├── SubmitDisputePage.tsx    # (planned) customer submission
+    │   ├── MyDisputesPage.tsx       # (planned) customer tracking list
+    │   ├── DisputeDetailPage.tsx    # (planned) status, decision, timeline
+    │   ├── AnalystQueuePage.tsx     # (planned) analyst work queue
+    │   └── AnalystReviewPage.tsx    # (planned) evidence + decision form
+    ├── components/
+    │   ├── RouteErrorBoundary.tsx
+    │   ├── Toaster.tsx              # toast notifications from uiSlice
+    │   └── …                        # (planned) StatusBadge, Timeline, DisputeForm
+    ├── store/
+    │   ├── store.ts                 # makeStore, combineSlices, RootState/AppDispatch
+    │   ├── hooks.ts                 # useAppSelector / useAppDispatch
+    │   ├── index.ts                 # public exports (import from "@/store")
+    │   ├── api/
+    │   │   ├── baseApi.ts           # single RTK Query API (base URL from VITE_API_URL)
+    │   │   └── …                    # (planned) transactions, disputes, analyst endpoints
+    │   └── slices/
+    │       ├── ui/uiSlice.ts        # sidebar + toasts
+    │       └── …                    # (planned) session slice: synthetic user + role
+    └── test/
+        └── renderWithProviders.tsx  # full app with fresh store + memory router
 ```
 
-Frontend is **one SPA with feature-oriented organization**, which mirrors domain terminology but does not impose the backend modular-monolith pattern on React. Three user-visible areas are enough: customer submission, customer tracking, analyst workspace (subpages as needed).
+**Conventions (from `frontend/README.md`):**
+
+- **Routing:** every route is a child of `RootLayout`; each page is lazy-loaded into its own chunk; `*` shows `NotFoundPage`; route errors show `RouteErrorBoundary`. URLs live in `paths.ts`. Role guards (customer vs analyst) are added at the route level.
+- **Server data** (transactions, disputes, analyst tasks) lives only in the **RTK Query** cache. Each area adds endpoints with `baseApi.injectEndpoints(...)` and uses the generated hooks (e.g. `useGetDisputesQuery`, `useCreateDisputeMutation`). Cache tags (e.g. `Dispute`, `AnalystTask`) are declared in `baseApi.tagTypes` so a submit/decision refreshes lists.
+- **Client state** (sidebar, toasts, synthetic session/role) lives in **slices** registered in `combineSlices(...)`. Always use the typed hooks from `@/store`.
+- **Styling:** Tailwind utility classes in `className`; full class names only (map status → class, as `Toaster.tsx` does for variants). No separate design system.
+- **API base URL:** `VITE_API_URL` defaults to `/api`. The backend contract uses `/api/v1` (§7.5), so either set `VITE_API_URL=/api/v1` or prefix endpoint paths with `v1/`; pick one in Increment 0.
+- **Tests:** Vitest + Testing Library + jsdom; test files sit next to the code (`*.test.tsx`); `renderWithProviders({ route, preloadedState })` for page tests; slices tested directly against `makeStore()`.
+
+Three user-visible areas are enough: customer submission, customer tracking, analyst workspace (subpages as needed). This layer-based layout mirrors domain terms in page/endpoint names but does not impose the backend modular-monolith pattern on React.
 
 ### Node worker structure
 
@@ -386,7 +407,7 @@ Base path `/api/v1`. Use JSON; request/response DTOs, Problem Details errors (`a
 +--------------------------------------------------------------+
 ```
 
-Frontend details: loading/empty/error states, form validation, status badges, a short read-only history, and clear messages for 409 conflict and session role. No design system or elaborate dashboards needed.
+Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isError`), form validation, status badges, a short read-only history, and clear messages for 409 conflict and session role. Success and error feedback (e.g. "Dispute submitted", "Task already completed") uses the existing toast system (`showToast` in `uiSlice` + `Toaster`). Screens are styled with Tailwind; no design system or elaborate dashboards needed.
 
 ## 7.7 Messaging, security, observability, tests
 
@@ -396,7 +417,7 @@ Frontend details: loading/empty/error states, form validation, status badges, a 
 
 **Observability:** JSON logging from Java and Node with `timestamp`, `level`, `service`, `correlationId`, `disputeId`, `event`, `errorCode`; logs sent to ELK; Kibana saved queries: dispute lifecycle, workflow errors, pending/retried notifications. No payment PAN/CVV, no full card data.
 
-**Test layers:** JUnit for matching rules, Spring integration tests for DB/engine including rollback, contract tests REST, RabbitMQ consumer retry/idempotency tests, React component/test-form tests, one browser E2E test. Smoke with 25 concurrent users; measure errors and p95 without claiming production SLA.
+**Test layers:** JUnit for matching rules, Spring integration tests for DB/engine including rollback, contract tests REST, RabbitMQ consumer retry/idempotency tests, React component/form and slice tests (Vitest + Testing Library, using `renderWithProviders`), one browser E2E test. Smoke with 25 concurrent users; measure errors and p95 without claiming production SLA.
 
 ## 8. Implementation planning — team of five
 
@@ -407,7 +428,7 @@ Frontend details: loading/empty/error states, form validation, status badges, a 
 - BE-2: Create monorepo conventions, Java Spring Boot skeleton with embedded Camunda startup and SQL Server connection, initial ADR notes.
 - BE-1: Liquibase baseline, synthetic fixture plan, skeleton domain module and first migration.
 - FS: Docker Compose for SQL Server, RabbitMQ, backend, Node, React; CI pipeline skeleton; agree API request/response examples.
-- FE-1/FE-2: React app skeleton, routes, shared styles, fake-data forms. **No backend dependence initially.**
+- FE-1/FE-2: React app skeleton, routes, shared styles, fake-data forms. **No backend dependence initially.** _Status: skeleton done_ — Vite + React 19 + TypeScript, React Router v7 with `RootLayout` and lazy pages, Redux store with `uiSlice` and empty RTK Query `baseApi`, Tailwind CSS v4, toast notifications, Vitest setup. Remaining: add customer/analyst routes and placeholder pages, synthetic session/role slice, settle the `VITE_API_URL` vs `/api/v1` base path.
 - **Exit:** fresh clone -> documented setup -> backend health, Camunda start, SQL Server available, frontend loads, PR checks pass.
 
 ### Increment 1 — Vertical slice: Automatic decision
@@ -415,7 +436,7 @@ Frontend details: loading/empty/error states, form validation, status badges, a 
 - BE-1: Customer, transaction, dispute, decision schemas and rule evaluator; create/list/detail APIs.
 - BE-2: Camunda process (start -> assessment -> auto decision -> end); audit transitions and workflow correlation.
 - FS: API integration smoke tests / seeded demo accounts; early contract agreement.
-- FE-1: transaction selection + submit UI; FE-2: read-only case status/timeline components.
+- FE-1: transaction selection + submit UI (transactions/disputes endpoints injected into `baseApi`); FE-2: read-only case status/timeline components.
 - **Demo:** select two synthetic transactions -> submit -> auto resolve -> view outcome. No RabbitMQ yet.
 
 ### Increment 2 — Manual review
@@ -452,7 +473,7 @@ Frontend details: loading/empty/error states, form validation, status badges, a 
 | POC-04 | Domain models and matching tests    | BE-1       | POC-03       | Rules yield three outcomes             |
 | POC-05 | Dispute REST endpoints              | BE-1       | POC-04       | Submit/list/get secured and tested     |
 | POC-06 | Embedded Camunda process            | BE-2       | POC-02,04    | Auto process completes and persists    |
-| POC-07 | React submit UI                     | FE-1       | API contract | Real request is submitted              |
+| POC-07 | React submit UI (RTK Query)         | FE-1       | API contract | Real request is submitted              |
 | POC-08 | React tracking UI                   | FE-2       | API contract | Case status and timeline visible       |
 | POC-09 | Camunda review task + timer         | BE-2       | POC-06       | Task and timeout branch demonstrated   |
 | POC-10 | Analyst REST and access             | BE-1       | POC-09       | Decision with rationale / role checks  |
