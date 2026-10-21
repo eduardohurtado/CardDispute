@@ -55,6 +55,17 @@ application:
     # Empty = run everything (db-init + demo-seed). Set to "db-init" to skip synthetic data.
     contexts: ${CARD_DISPUTE_LIQUIBASE_CONTEXTS:}
 
+  # Synthetic POC rules
+  dispute:
+    rules:
+      eligibility-window: P60D
+      duplicate-match-window: PT1H
+      review-match-window: PT24H
+      high-value-thresholds:
+        COP: 2000000
+        USD: 500
+
+
 
   security:
     # Synthetic demo identities. customer-id must exist in dispute customer seed data.
