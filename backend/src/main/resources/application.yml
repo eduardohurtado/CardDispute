@@ -7,6 +7,9 @@ spring:
         enabled: false
   liquibase:
     enabled: false
+  mvc:
+    problemdetails:
+      enabled: true
 
 camunda:
   bpm:
