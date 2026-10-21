@@ -1,0 +1,1021 @@
+{
+  "info": {
+    "name": "Card Dispute POC API",
+    "description": "Increment 1 endpoints of the Card Dispute POC backend (synthetic data only).\n\nAuth: HTTP Basic with the demo users (customer01 / customer02 / analyst01, password `demo`). The collection uses customer01 by default; folders override it where needed.\n\nEvery request gets a random `X-Correlation-Id` header (collection pre-request script). Successful submissions store the new id in the `disputeId` collection variable, used by the query requests.\n\nRun the 'Submit scenarios' folder once on a fresh seed: re-running it returns 409 OPEN_DISPUTE_EXISTS while those disputes are still open.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{customerUser}}", "type": "string" },
+      { "key": "password", "value": "{{password}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'X-Correlation-Id', value: pm.variables.replaceIn('{{$guid}}') });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "customerUser", "value": "customer01" },
+    { "key": "customer2User", "value": "customer02" },
+    { "key": "analystUser", "value": "analyst01" },
+    { "key": "password", "value": "demo" },
+    { "key": "disputeId", "value": "", "description": "Last dispute created by any submission" },
+    { "key": "customer01DisputeId", "value": "", "description": "Dispute created by 'Cafe Aroma' (customer01)" }
+  ],
+  "item": [
+    {
+      "name": "00 - Auth checks",
+      "item": [
+        {
+          "name": "No credentials -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 problem+json', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/problem+json');",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('UNAUTHENTICATED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Wrong password -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customerUser}}", "type": "string" },
+                { "key": "password", "value": "wrong-password", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Transactions (customer)",
+      "item": [
+        {
+          "name": "List posted transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with only POSTED', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.content).to.be.an('array').that.is.not.empty;",
+                  "  body.content.forEach(t => pm.expect(t.status).to.eql('POSTED'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?status=POSTED&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [
+                { "key": "status", "value": "POSTED", "description": "POSTED | PENDING | REVERSED (optional)" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List all transactions (sorted by amount)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?size=50&sort=amount,desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [
+                { "key": "size", "value": "50" },
+                { "key": "sort", "value": "amount,desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get transaction by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with reference', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().reference).to.eql('SYN-0001');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/aaaaaaaa-0000-0000-0000-000000000001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions", "aaaaaaaa-0000-0000-0000-000000000001"]
+            }
+          }
+        },
+        {
+          "name": "Get transaction of another customer -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TRANSACTION_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('TRANSACTION_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/aaaaaaaa-0000-0000-0000-000000000021",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions", "aaaaaaaa-0000-0000-0000-000000000021"]
+            }
+          }
+        },
+        {
+          "name": "Analyst lists transactions -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 ACCESS_DENIED', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('ACCESS_DENIED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{analystUser}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transactions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Submit scenarios (customer)",
+      "description": "Each request submits one seeded scenario. The expected assessment outcome is in the request name; it is applied once the workflow delegates (BE-2) call DisputeLifecycleService. Until then disputes stay SUBMITTED.",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/disputes/');",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.status).to.eql('SUBMITTED');",
+              "  pm.expect(body.candidateTransaction).to.be.an('object');",
+              "  pm.collectionVariables.set('disputeId', body.disputeId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "item": [
+        {
+          "name": "Cafe Aroma, 10 min apart (SUPPORTED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('customer01DisputeId', pm.response.json().disputeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"I was charged twice at the coffee shop\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Fuel Stop, ambiguous merchant (MANUAL_REVIEW)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000003\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000004\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Electro Hogar, high value (MANUAL_REVIEW)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000005\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000006\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Book Store, different amounts (NOT_SUPPORTED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000007\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000008\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Streaming Plus USD, 3 h apart (MANUAL_REVIEW)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000009\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000010\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Mercado Central, same reference (SUPPORTED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000013\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000014\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"Same receipt reference charged twice\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Tecno Mundo, same reference + high value (MANUAL_REVIEW)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000015\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000016\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Hotel Andes, same reference + different amount (MANUAL_REVIEW)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000017\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000018\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Customer 02 - Pizza Palace (SUPPORTED)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customer2User}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000022\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Customer 02 - Parqueadero, same reference (SUPPORTED)",
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customer2User}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000023\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000024\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Submit errors (customer)",
+      "description": "Rejected submissions: no dispute is created. Run after '02 - Submit scenarios' so the 409 requests find the open disputes.",
+      "item": [
+        {
+          "name": "Missing candidate -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_FAILED on candidateTransactionId', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.errorCode).to.eql('VALIDATION_FAILED');",
+                  "  pm.expect(body.violations.map(v => v.field)).to.include('candidateTransactionId');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Invalid reason code -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"FRAUD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Transaction of another customer -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 TRANSACTION_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('TRANSACTION_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000022\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Pending transaction -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 TRANSACTION_NOT_POSTED', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('TRANSACTION_NOT_POSTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000011\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Posted more than 60 days ago -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 DISPUTE_WINDOW_EXPIRED', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('DISPUTE_WINDOW_EXPIRED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000012\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Candidate equals transaction -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 INVALID_CANDIDATE', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('INVALID_CANDIDATE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Candidate of another customer -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 INVALID_CANDIDATE', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('INVALID_CANDIDATE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Same pair again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 OPEN_DISPUTE_EXISTS', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('OPEN_DISPUTE_EXISTS');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Reversed pair (candidate already disputed) -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 OPEN_DISPUTE_EXISTS', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('OPEN_DISPUTE_EXISTS');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Analyst submits -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{analystUser}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Dispute queries (customer)",
+      "item": [
+        {
+          "name": "List my disputes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 paged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.keys('content', 'page', 'size', 'totalElements', 'totalPages');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List my disputes by status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 filtered', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.response.json().content.forEach(d => pm.expect(d.status).to.eql('SUBMITTED'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes?status=SUBMITTED",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "SUBMITTED",
+                  "description": "SUBMITTED | IN_REVIEW | AWAITING_ANALYST | TIMEOUT_REVIEW_REQUIRED | RESOLVED_DUPLICATE_SUPPORTED | RESOLVED_NOT_SUPPORTED | REJECTED_INELIGIBLE"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get dispute detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with both transactions', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.disputeId).to.eql(pm.collectionVariables.get('customer01DisputeId'));",
+                  "  pm.expect(body.transaction).to.be.an('object');",
+                  "  pm.expect(body.candidateTransaction).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Unknown dispute -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 DISPUTE_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('DISPUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{$guid}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{$guid}}"]
+            }
+          }
+        },
+        {
+          "name": "Customer 02 reads customer 01 dispute -> 404",
+          "description": "Ownership check: another customer's case returns 404 (no existence leak).",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 DISPUTE_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('DISPUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customer2User}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Invalid id format -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('400', () => pm.response.to.have.status(400));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/not-a-uuid",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "not-a-uuid"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Dispute queries (analyst)",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{analystUser}}", "type": "string" },
+          { "key": "password", "value": "{{password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List all disputes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes?size=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"],
+              "query": [{ "key": "size", "value": "50" }]
+            }
+          }
+        },
+        {
+          "name": "List disputes awaiting analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes?status=AWAITING_ANALYST",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"],
+              "query": [{ "key": "status", "value": "AWAITING_ANALYST" }]
+            }
+          }
+        },
+        {
+          "name": "Get any dispute detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{disputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{disputeId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
