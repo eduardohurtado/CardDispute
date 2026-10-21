@@ -107,6 +107,14 @@ public class DisputeService {
                 transactions.get(dispute.getCandidateTransactionId()));
     }
 
+    public void markInReview(UUID disputeId){
+
+    }
+
+    public void resolveAutomatically(UUID disputeId, String outcome, String rationale) {
+
+    }
+
     /** Customers only see their own cases (404 otherwise); analysts see every case. */
     private DisputeCase findAuthorized(AuthenticatedUser user, UUID disputeId) {
         return (user.isAnalyst()
