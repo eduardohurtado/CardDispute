@@ -1,0 +1,46 @@
+
+name: bank-poc-clean-test
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: bank-poc-sqlserver-clean-test
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Password required}
+
+    ports:
+      - "127.0.0.1:1434:1433"
+
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+    restart: "no"
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+
+    depends_on:
+      sqlserver:
+        condition: service_started
+
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Password required}
+      CAMUNDA_DB_PASSWORD: ${CAMUNDA_DB_PASSWORD:?Password required}
+      BUSINESS_DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Password required}
+      LIQUIBASE_DB_PASSWORD: ${LIQUIBASE_DB_PASSWORD:?Password required}
+
+    volumes:
+      - ./db/init.sh:/init.sh:ro
+      - ./db/scripts:/scripts:ro
+
+    entrypoint:
+      - /bin/bash
+      - /init.sh
+
+    restart: "no"
+
+volumes:
+  sqlserver_data:

@@ -1,0 +1,52 @@
+
+name: bank-poc
+
+services:
+  # =========================================
+  # SQL SERVER
+  # =========================================
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: bank-poc-sqlserver
+
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+
+    ports:
+      - "127.0.0.1:${SQLSERVER_PORT:-1433}:1433"
+
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+    restart: unless-stopped
+
+  # =========================================
+  # DATABASE INITIALIZATION
+  # =========================================
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+
+    depends_on:
+      sqlserver:
+        condition: service_started
+
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Password required}
+      CAMUNDA_DB_PASSWORD: ${CAMUNDA_DB_PASSWORD:?Password required}
+      BUSINESS_DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Password required}
+      LIQUIBASE_DB_PASSWORD: ${LIQUIBASE_DB_PASSWORD:?Password required}
+
+    volumes:
+      - ./db/init.sh:/init.sh:ro
+      - ./db/scripts:/scripts:ro
+
+    entrypoint:
+      - /bin/bash
+      - /init.sh
+
+    restart: "no"
+
+volumes:
+  sqlserver_data:
