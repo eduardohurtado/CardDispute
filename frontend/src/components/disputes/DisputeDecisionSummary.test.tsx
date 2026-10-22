@@ -12,14 +12,16 @@ function disputeByStatus(status: Dispute['status']): Dispute {
 
 describe('DisputeDecisionSummary', () => {
   it('shows a placeholder while the decision is pending', () => {
-    render(<DisputeDecisionSummary dispute={disputeByStatus('AWAITING_ANALYST')} />);
+    render(<DisputeDecisionSummary decision={disputeByStatus('AWAITING_ANALYST').decision} />);
 
     expect(screen.getByText('Decision pending')).toBeInTheDocument();
     expect(screen.queryByRole('term', { name: 'Outcome' })).not.toBeInTheDocument();
   });
 
   it('shows the outcome of a decided case', () => {
-    render(<DisputeDecisionSummary dispute={disputeByStatus('RESOLVED_DUPLICATE_SUPPORTED')} />);
+    render(
+      <DisputeDecisionSummary decision={disputeByStatus('RESOLVED_DUPLICATE_SUPPORTED').decision} />,
+    );
 
     expect(screen.getByText('Duplicate supported')).toBeInTheDocument();
     expect(screen.getByText('Automated rules')).toBeInTheDocument();
@@ -27,7 +29,9 @@ describe('DisputeDecisionSummary', () => {
   });
 
   it('shows the rationale of the decision', () => {
-    render(<DisputeDecisionSummary dispute={disputeByStatus('RESOLVED_DUPLICATE_SUPPORTED')} />);
+    render(
+      <DisputeDecisionSummary decision={disputeByStatus('RESOLVED_DUPLICATE_SUPPORTED').decision} />,
+    );
 
     expect(
       screen.getByText('Same merchant, same amount and same currency within one hour.'),

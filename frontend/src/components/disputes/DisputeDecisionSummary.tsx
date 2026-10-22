@@ -1,14 +1,12 @@
 import { Fact } from '@/components/ui/Fact';
 import { Facts } from '@/components/ui/Facts';
 import { StateBlock } from '@/components/ui/StateBlock';
-import type { Dispute } from '@/types/dispute';
+import type { DisputeDecision } from '@/types/dispute';
 import { formatDateTime } from '@/utils/format';
 import { decisionLabel, decisionSourceLabel } from './meta';
 
-/** The final decision of the case, or a placeholder while it is pending. */
-export function DisputeDecisionSummary({ dispute }: { dispute: Dispute }) {
-  const decision = dispute.decision;
-
+/** The final decision of a case, or a placeholder while it is pending. */
+export function DisputeDecisionSummary({ decision }: { decision: DisputeDecision | null }) {
   if (!decision) {
     return (
       <StateBlock

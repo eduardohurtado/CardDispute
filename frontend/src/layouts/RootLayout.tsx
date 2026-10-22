@@ -47,6 +47,9 @@ export function RootLayout() {
             <NavLink to={paths.newDispute} end className={navLinkClass}>
               Report a charge
             </NavLink>
+            <NavLink to={paths.analyst} end className={navLinkClass}>
+              Analyst
+            </NavLink>
           </nav>
         )}
         <main className="flex-1 p-6">
