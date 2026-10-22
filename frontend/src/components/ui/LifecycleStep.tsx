@@ -7,8 +7,8 @@ export type LifecycleStepState = 'done' | 'current' | 'pending' | 'skipped' | 'e
 const stateMarkerClasses: Record<LifecycleStepState, string> = {
   done: 'border-green-600 bg-green-600 text-white',
   current: 'border-blue-600 bg-blue-600 text-white',
-  pending: 'border-gray-300 bg-white text-transparent',
-  skipped: 'border-gray-300 bg-gray-100 text-gray-400',
+  pending: 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-transparent',
+  skipped: 'border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500',
   exception: 'border-red-600 bg-red-600 text-white',
 };
 

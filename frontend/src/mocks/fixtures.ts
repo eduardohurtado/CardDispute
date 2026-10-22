@@ -1,5 +1,6 @@
-import { DEMO_CUSTOMER_ID } from '@/config/demoSession';
+import { DEMO_USERS } from '@/config/demoUsers';
 import type { Dispute, DisputeTransaction, TimelineEvent } from '@/types/dispute';
+import type { Transaction } from '@/types/transaction';
 
 /**
  * Deterministic mock data for the local Mock Service Worker.
@@ -8,7 +9,16 @@ import type { Dispute, DisputeTransaction, TimelineEvent } from '@/types/dispute
  * reproducible. Never use `new Date()` or `Math.random()` here.
  */
 
-const OTHER_CUSTOMER_ID = '99999999-9999-4999-8999-999999999999';
+/** customer01 in the mock API. */
+export const DEMO_CUSTOMER_ID = DEMO_USERS[0]!.mockCustomerId;
+/** customer02 in the mock API. */
+const OTHER_CUSTOMER_ID = DEMO_USERS[1]!.mockCustomerId;
+
+/**
+ * Fixed "current time" of the mock API. The 60-day eligibility window is
+ * measured from it, so results never depend on the real clock.
+ */
+export const MOCK_NOW = '2026-10-21T12:00:00Z';
 
 const coffeeShopCharge: DisputeTransaction = {
   transactionId: 'a1000000-0000-4000-8000-000000000001',
@@ -86,6 +96,93 @@ const cinemaCharge: DisputeTransaction = {
   postedAt: '2026-10-02T19:35:00Z',
   occurredAt: '2026-10-02T19:10:00Z',
 };
+
+/** A transaction as stored by the mock API: the API shape plus its owner. */
+export interface MockTransaction extends Transaction {
+  customerId: string;
+}
+
+function owned(
+  transaction: DisputeTransaction,
+  customerId: string = DEMO_CUSTOMER_ID,
+  reference: string | null = null,
+): MockTransaction {
+  return { ...transaction, reference, customerId };
+}
+
+/** Charges no dispute uses yet. The Éxito pair is a clear duplicate to submit. */
+const supermarketCharge: DisputeTransaction = {
+  transactionId: 'a1000000-0000-4000-8000-000000000008',
+  merchantName: 'Supermercado Éxito',
+  amount: 154300,
+  currency: 'COP',
+  cardLast4: '4417',
+  status: 'POSTED',
+  postedAt: '2026-10-15T18:30:00Z',
+  occurredAt: '2026-10-15T18:02:00Z',
+};
+
+const supermarketDuplicate: DisputeTransaction = {
+  transactionId: 'a1000000-0000-4000-8000-000000000009',
+  merchantName: 'Supermercado Éxito',
+  amount: 154300,
+  currency: 'COP',
+  cardLast4: '4417',
+  status: 'POSTED',
+  postedAt: '2026-10-15T18:50:00Z',
+  occurredAt: '2026-10-15T18:22:00Z',
+};
+
+/** Still pending: not listed as POSTED and rejected on submission. */
+const taxiCharge: DisputeTransaction = {
+  transactionId: 'a1000000-0000-4000-8000-000000000010',
+  merchantName: 'Taxi Libre',
+  amount: 18500,
+  currency: 'COP',
+  cardLast4: '4417',
+  status: 'PENDING',
+  postedAt: null,
+  occurredAt: '2026-10-20T22:10:00Z',
+};
+
+/** Posted more than 60 days before MOCK_NOW: outside the dispute window. */
+const bookshopCharge: DisputeTransaction = {
+  transactionId: 'a1000000-0000-4000-8000-000000000011',
+  merchantName: 'Librería Nacional',
+  amount: 62000,
+  currency: 'COP',
+  cardLast4: '9921',
+  status: 'POSTED',
+  postedAt: '2026-07-01T16:00:00Z',
+  occurredAt: '2026-07-01T15:40:00Z',
+};
+
+const bakeryCharge: DisputeTransaction = {
+  transactionId: 'a1000000-0000-4000-8000-000000000012',
+  merchantName: 'Panadería La 80',
+  amount: 9800,
+  currency: 'COP',
+  cardLast4: '7302',
+  status: 'POSTED',
+  postedAt: '2026-10-14T07:45:00Z',
+  occurredAt: '2026-10-14T07:30:00Z',
+};
+
+/** Every synthetic card transaction, newest first. */
+export const demoTransactions: MockTransaction[] = [
+  owned(taxiCharge),
+  owned(supermarketDuplicate, DEMO_CUSTOMER_ID, 'EXITO-0415-B'),
+  owned(supermarketCharge, DEMO_CUSTOMER_ID, 'EXITO-0415-A'),
+  owned(bakeryCharge, OTHER_CUSTOMER_ID),
+  owned(coffeeShopDuplicate),
+  owned(coffeeShopCharge),
+  owned(fuelStopCharge),
+  owned(pharmacyCharge),
+  owned(onlineStoreDuplicate),
+  owned(onlineStoreCharge),
+  owned(cinemaCharge),
+  owned(bookshopCharge),
+];
 
 export const demoDisputes: Dispute[] = [
   {

@@ -11,8 +11,8 @@ export function DisputeLifecycle({ dispute }: { dispute: Dispute }) {
     <Lifecycle aria-label="Case progress">
       {steps.map((step) => (
         <LifecycleStep key={step.phase} state={step.state}>
-          <p className="text-sm font-medium text-gray-900">{step.label}</p>
-          <p className="mt-0.5 text-sm text-gray-600">{step.description}</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{step.label}</p>
+          <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{step.description}</p>
         </LifecycleStep>
       ))}
     </Lifecycle>

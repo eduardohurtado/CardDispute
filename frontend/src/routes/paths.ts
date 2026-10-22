@@ -2,6 +2,7 @@
 export const paths = {
   home: '/',
   disputes: '/disputes',
+  newDispute: '/disputes/new',
   dispute: '/disputes/:id',
 } as const;
 

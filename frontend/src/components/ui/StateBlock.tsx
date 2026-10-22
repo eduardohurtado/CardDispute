@@ -30,16 +30,16 @@ export function StateBlock({
       role={tone === 'danger' ? 'alert' : 'status'}
       className={clsx(
         'rounded-md border p-6 text-center',
-        tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50',
+        tone === 'danger' ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800',
         className,
       )}
       {...rest}
     >
-      <p className={clsx('text-sm font-medium', tone === 'danger' ? 'text-red-800' : 'text-gray-900')}>
+      <p className={clsx('text-sm font-medium', tone === 'danger' ? 'text-red-800 dark:text-red-300' : 'text-gray-900 dark:text-gray-100')}>
         {title}
       </p>
       {description ? (
-        <p className={clsx('mt-1 text-sm', tone === 'danger' ? 'text-red-700' : 'text-gray-600')}>
+        <p className={clsx('mt-1 text-sm', tone === 'danger' ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-gray-400')}>
           {description}
         </p>
       ) : null}

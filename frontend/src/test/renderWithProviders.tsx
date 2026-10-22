@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createMemoryRouter, RouterProvider } from 'react-router';
+import { ThemeSync } from '@/components/theme/ThemeSync';
 import { routes } from '@/routes/routes';
 import { makeStore, type RootState } from '@/store';
 
@@ -16,6 +17,7 @@ export function renderWithProviders({ route = '/', preloadedState }: Options = {
   const router = createMemoryRouter(routes, { initialEntries: [route] });
   const result = render(
     <Provider store={store}>
+      <ThemeSync />
       <RouterProvider router={router} />
     </Provider>,
   );

@@ -52,14 +52,14 @@ export default function MyDisputesPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">My Disputes</h1>
         <div className="flex items-center gap-2">
-          <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
+          <label htmlFor="status-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">
             Status
           </label>
           <select
             id="status-filter"
             value={status ?? ''}
             onChange={handleStatusChange}
-            className="cursor-pointer rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="cursor-pointer rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
           >
             <option value="">All statuses</option>
             {DISPUTE_STATUSES.map((option) => (
@@ -72,7 +72,7 @@ export default function MyDisputesPage() {
       </header>
 
       {isLoading ? (
-        <div className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
           <Spinner label="Loading cases" />
           <span>Loading your cases…</span>
         </div>
@@ -103,7 +103,7 @@ export default function MyDisputesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">Your dispute cases, newest first</caption>
-            <thead className="text-xs text-gray-500 uppercase">
+            <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase">
               <tr>
                 <th scope="col" className="py-2 pr-4 font-medium">
                   Case
@@ -127,10 +127,10 @@ export default function MyDisputesPage() {
             </thead>
             <tbody>
               {data?.items.map((dispute) => (
-                <tr key={dispute.disputeId} className="border-t border-gray-200">
+                <tr key={dispute.disputeId} className="border-t border-gray-200 dark:border-gray-700">
                   <th
                     scope="row"
-                    className="py-3 pr-4 font-mono text-xs font-normal break-all text-gray-900"
+                    className="py-3 pr-4 font-mono text-xs font-normal break-all text-gray-900 dark:text-gray-100"
                   >
                     {dispute.disputeId}
                   </th>
@@ -145,7 +145,7 @@ export default function MyDisputesPage() {
                   <td className="py-3 pl-4">
                     <Link
                       to={disputePath(dispute.disputeId)}
-                      className="font-medium text-blue-700 underline"
+                      className="font-medium text-blue-700 dark:text-blue-300 underline"
                     >
                       View
                     </Link>
@@ -154,7 +154,7 @@ export default function MyDisputesPage() {
               ))}
             </tbody>
           </table>
-          {isFetching ? <p className="mt-2 text-xs text-gray-500">Updating…</p> : null}
+          {isFetching ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Updating…</p> : null}
         </div>
       )}
     </section>
