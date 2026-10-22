@@ -8,14 +8,14 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 
 describe('AnalystQueuePage', () => {
   it('lists the tasks of the pending queue', async () => {
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     expect(await screen.findByRole('cell', { name: 'Online Store' })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'Farmacia Central' })).toBeInTheDocument();
   });
 
   it('hides the tasks of the other queue', async () => {
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     await screen.findByRole('cell', { name: 'Online Store' });
 
@@ -23,7 +23,7 @@ describe('AnalystQueuePage', () => {
   });
 
   it('shows the size of both queues', async () => {
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     const pending = await screen.findByRole('tab', { name: /Pending tasks/ });
 
@@ -34,7 +34,7 @@ describe('AnalystQueuePage', () => {
   });
 
   it('switches to the other queue', async () => {
-    const { router } = renderWithProviders({ route: '/analyst' });
+    const { router } = renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     await userEvent.click(await screen.findByRole('tab', { name: /Due soon/ }));
 
@@ -47,7 +47,7 @@ describe('AnalystQueuePage', () => {
     server.use(
       http.get(ANALYST_TASKS_PATH, () =>
         HttpResponse.json({
-          items: [],
+          content: [],
           page: 0,
           size: 20,
           totalElements: 0,
@@ -57,7 +57,7 @@ describe('AnalystQueuePage', () => {
       ),
     );
 
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     expect(await screen.findByText('No tasks in this queue')).toBeInTheDocument();
   });
@@ -69,7 +69,7 @@ describe('AnalystQueuePage', () => {
       ),
     );
 
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     expect(await screen.findByText('We could not load the work queue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe('AnalystQueuePage', () => {
       ),
     );
 
-    renderWithProviders({ route: '/analyst' });
+    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('Boom');

@@ -4,6 +4,7 @@ import { ThemePicker } from '@/components/theme/ThemePicker';
 import { Toaster } from '@/components/Toaster';
 import { paths } from '@/routes/paths';
 import { useAppDispatch, useAppSelector } from '@/store';
+import { selectRole, selectSession, signedOut } from '@/store/slices/auth/authSlice';
 import { selectIsSidebarOpen, toggleSidebar } from '@/store/slices/ui/uiSlice';
 
 // NavLink sets aria-current="page" on the active link.
@@ -14,6 +15,8 @@ export function RootLayout() {
   const isNavigating = navigation.state !== 'idle';
   const dispatch = useAppDispatch();
   const isSidebarOpen = useAppSelector(selectIsSidebarOpen);
+  const role = useAppSelector(selectRole);
+  const session = useAppSelector(selectSession);
 
   return (
     <div className="min-h-screen">

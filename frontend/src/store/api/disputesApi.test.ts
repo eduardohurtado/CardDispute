@@ -9,7 +9,7 @@ describe('disputesApi', () => {
     const result = await store.dispatch(disputesApi.endpoints.getDisputes.initiate({}));
 
     expect(result.error).toBeUndefined();
-    expect(result.data?.items).toHaveLength(5);
+    expect(result.data?.content).toHaveLength(5);
     expect(result.data?.totalElements).toBe(5);
     expect(result.data?.page).toBe(0);
   });
@@ -19,8 +19,8 @@ describe('disputesApi', () => {
       disputesApi.endpoints.getDisputes.initiate({ status: 'AWAITING_ANALYST' }),
     );
 
-    expect(result.data?.items).toHaveLength(1);
-    expect(result.data?.items[0]?.status).toBe('AWAITING_ANALYST');
+    expect(result.data?.content).toHaveLength(1);
+    expect(result.data?.content[0]?.status).toBe('AWAITING_ANALYST');
   });
 
   it('paginates the list', async () => {
@@ -28,7 +28,7 @@ describe('disputesApi', () => {
       disputesApi.endpoints.getDisputes.initiate({ page: 0, size: 2 }),
     );
 
-    expect(result.data?.items).toHaveLength(2);
+    expect(result.data?.content).toHaveLength(2);
     expect(result.data?.totalElements).toBe(5);
     expect(result.data?.totalPages).toBe(3);
   });

@@ -90,7 +90,7 @@ export default function MyDisputesPage() {
             Try again
           </button>
         </StateBlock>
-      ) : data?.items.length === 0 ? (
+      ) : data?.content.length === 0 ? (
         <StateBlock
           title="No cases to show"
           description={
@@ -126,7 +126,7 @@ export default function MyDisputesPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((dispute) => (
+              {data?.content.map((dispute) => (
                 <tr key={dispute.disputeId} className="border-t border-gray-200 dark:border-gray-700">
                   <th
                     scope="row"
@@ -134,9 +134,9 @@ export default function MyDisputesPage() {
                   >
                     {dispute.disputeId}
                   </th>
-                  <td className="px-4 py-3">{dispute.transaction.merchantName}</td>
+                  <td className="px-4 py-3">{dispute.merchantName}</td>
                   <td className="px-4 py-3">
-                    {formatAmount(dispute.transaction.amount, dispute.transaction.currency)}
+                    {formatAmount(dispute.amount, dispute.currency)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={dispute.status} />

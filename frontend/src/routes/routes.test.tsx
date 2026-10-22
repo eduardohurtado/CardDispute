@@ -52,3 +52,49 @@ describe('layout state', () => {
     await waitForElementToBeRemoved(() => screen.queryByRole('status'));
   });
 });
+
+describe('role guards', () => {
+  it('sends an anonymous visitor to the login screen', async () => {
+    const { router } = renderWithProviders({ route: '/disputes', authenticated: false });
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/login');
+  });
+
+  it('keeps a customer out of the analyst workspace', async () => {
+    renderWithProviders({ route: '/analyst' });
+
+    expect(await screen.findByRole('heading', { name: 'Not available' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('This area is for analysts');
+  });
+
+  it('keeps an analyst out of the customer pages', async () => {
+    renderWithProviders({ route: '/disputes', role: 'DISPUTE_ANALYST' });
+
+    expect(await screen.findByRole('heading', { name: 'Not available' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('This area is for customers');
+  });
+
+  it('shows only the navigation of the signed-in role', async () => {
+    const { unmount } = renderWithProviders({ route: '/' });
+
+    expect(await screen.findByRole('link', { name: 'My Disputes' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Analyst' })).not.toBeInTheDocument();
+    unmount();
+
+    renderWithProviders({ route: '/', role: 'DISPUTE_ANALYST' });
+
+    expect(await screen.findByRole('link', { name: 'Analyst' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'My Disputes' })).not.toBeInTheDocument();
+  });
+
+  it('signs the user out from the header', async () => {
+    const { router } = renderWithProviders({ route: '/disputes' });
+
+    await screen.findByRole('heading', { name: 'My Disputes' });
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/login');
+  });
+});
