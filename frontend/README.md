@@ -2,6 +2,8 @@
 
 Web client for the Card Dispute platform. It is a single-page app (SPA) built with React 19 and TypeScript.
 
+**What works today:** customers report a possible duplicate charge, follow their cases (list, detail, live status), switch between synthetic demo users and pick a light or dark theme. Every screen runs against the MSW mock API; the backend wiring is in place, with the gaps listed in [Known gaps with the real backend](#known-gaps-with-the-real-backend). The analyst workspace is not built yet.
+
 ## Tech stack
 
 | Area               | Technology                                                                 |
@@ -25,14 +27,41 @@ Web client for the Card Dispute platform. It is a single-page app (SPA) built wi
 
 ```bash
 cd frontend
-npm install          # install dependencies
-cp .env.example .env.local   # optional: set the backend URL
-npm run dev          # open http://localhost:3000
+npm install                  # install dependencies
+cp .env.example .env.local   # then pick a mode below
+npm run dev                  # open http://localhost:3000
 ```
 
-By default the app calls `/api`, and the dev server **proxies** those calls to the backend at `BACKEND_URL` (default `http://localhost:8080`). The backend has no CORS setup, so keep `VITE_API_URL` relative.
+### Your `.env.local`
 
-To run without a backend, set `VITE_USE_MOCKS=true` in `.env.local` (or `frontend/.env`). The MSW browser worker then serves every endpoint.
+`.env.local` holds your local settings. Git ignores it, so every developer creates their own. Pick one of the two modes:
+
+**Mock mode: no backend needed.** Use this to work on screens or to demo the app. The MSW mock API answers every request with the data in `src/mocks/fixtures.ts`.
+
+```bash
+# frontend/.env.local
+VITE_API_URL=/api
+VITE_USE_MOCKS=true
+```
+
+**Backend mode: the real Spring Boot API.** Start the backend on port 8080 first. The dev server forwards `/api` calls to it, because the backend has no CORS setup.
+
+```bash
+# frontend/.env.local
+VITE_API_URL=/api
+VITE_USE_MOCKS=false
+BACKEND_URL=http://localhost:8080   # change if the backend runs elsewhere
+VITE_DEMO_PASSWORD=demo             # must match DEMO_USER_PASSWORD in the backend
+```
+
+Some screens don't work in backend mode yet; see [Known gaps with the real backend](#known-gaps-with-the-real-backend).
+
+**After editing `.env.local`, stop and restart `npm run dev`.** Vite reads env files only at startup.
+
+**Troubleshooting:**
+- **Every API call fails** (`502` in the browser's Network tab): the app is in backend mode and no backend is running. Start the backend, or switch to mock mode.
+- **Mock mode is set but calls still fail:** check the browser console for `[MSW] Mocking enabled`. If it isn't there, restart `npm run dev` and hard-reload the page (Cmd+Shift+R).
+- **`401` errors in backend mode:** `VITE_DEMO_PASSWORD` doesn't match the backend's demo user password.
 
 ### Environment variables
 
@@ -70,7 +99,7 @@ frontend/
   src/
     main.tsx                 # Mounts <Provider store> → <RouterProvider router>
     index.css                # Tailwind import + base styles
-    setupTests.ts            # Vitest setup: jest-dom + MSW server lifecycle
+    setupTests.ts            # Vitest setup: jest-dom, MSW server, <dialog>/matchMedia stubs, per-test reset
     types/                   # Domain types shared by the API layer and pages
       dispute.ts             #   Dispute, DisputeStatus, TimelineEvent, ProblemDetails…
       transaction.ts         #   Transaction, CreateDisputeRequest
@@ -89,6 +118,8 @@ frontend/
     layouts/
       RootLayout.tsx         # Shared shell: header, sidebar, <Outlet />, toasts
     pages/                   # One component per screen
+      HomePage.tsx           #   Landing page
+      NotFoundPage.tsx       #   404 for unknown URLs
       MyDisputesPage.tsx     #   Customer tracking list
       DisputeDetailPage.tsx  #   Case status, decision, facts, timeline (refreshes while open)
       SubmitDisputePage.tsx  #   Report a possible duplicate charge
@@ -133,9 +164,10 @@ Imports can use the `@/` alias for `src/` (for example `import { store } from '@
 ```mermaid
 flowchart TD
   main["main.tsx"] --> provider["Redux Provider (store)"]
+  provider --> themesync["ThemeSync<br/>applies data-theme"]
   provider --> routerp["RouterProvider (router)"]
-  routerp --> layout["RootLayout<br/>header · sidebar · Toaster"]
-  layout --> pages["Pages (lazy-loaded)<br/>MyDisputes · DisputeDetail · SubmitDispute"]
+  routerp --> layout["RootLayout<br/>header (Demo user · Theme) · sidebar · Toaster"]
+  layout --> pages["Pages (lazy-loaded)<br/>Home · MyDisputes · DisputeDetail · SubmitDispute"]
   layout -. errors .-> boundary["RouteErrorBoundary"]
   pages -- "useAppSelector / useAppDispatch" --> slices["Slices<br/>client / UI state"]
   pages -- "generated query hooks" --> api["RTK Query baseApi<br/>server data cache"]
@@ -156,7 +188,11 @@ flowchart TD
 The store keeps two kinds of data apart:
 
 - **Server data** (disputes, users…) lives in the **RTK Query** cache. `baseApi.ts` is the single API; each feature adds its endpoints with `baseApi.injectEndpoints(...)` and uses the hooks it generates (for example `useGetDisputesQuery`).
-- **Client state** (UI, preferences) lives in **slices**. `uiSlice.ts` is the pattern to copy; register new slices in `combineSlices(...)` in `store.ts`.
+- **Client state** lives in **slices**, registered in `combineSlices(...)` in `store.ts`:
+  - `uiSlice`: sidebar, toasts and theme (`themePreference`, `systemPrefersDark`)
+  - `sessionSlice`: the current demo user
+
+  `uiSlice.ts` is the pattern to copy for a new slice.
 
 Always use the typed hooks `useAppSelector` / `useAppDispatch` from `@/store`, not the plain react-redux ones.
 
@@ -208,9 +244,9 @@ The frontend is built **contract-first** against MSW, so screens work before the
 - `POST /disputes` applies the same rules as the backend `DisputeService.submit` (ownership, POSTED only, 60-day window measured from `MOCK_NOW`, two different charges, no open dispute on either). Created cases live in memory; `resetMockDb()` clears them after each test.
 - `src/mocks/fixtures.ts` holds the demo cases. Fixtures are deterministic: fixed UUIDs and ISO timestamps, no `new Date()` and no `Math.random()`.
 - `src/mocks/browser.ts` is the dev worker. `main.tsx` starts it before the first render when `VITE_USE_MOCKS=true`, and only then.
-- `src/mocks/server.ts` is the Node server used by the tests. Its lifecycle lives in `src/setupTests.ts`: `server.listen({ onUnhandledRequest: 'error' })` before each test, `server.resetHandlers()` after each test, `server.close()` when the file ends.
+- `src/mocks/server.ts` is the Node server used by the tests. Its lifecycle lives in `src/setupTests.ts`: `server.listen({ onUnhandledFrame: 'error' })` before the tests, `server.resetHandlers()` and `resetMockDb()` after each test, `server.close()` at the end.
 - A test overrides a route with `server.use(http.get(DISPUTES_PATH, ...))` using the exported predicates.
-- The wire format is documented in `docs/api/disputes-contract.md`. That document is the proposal handed to the backend team; the mocks follow it exactly.
+- The mocks follow the REST contract in the blueprint (`docs/Implementation-guide/Card_Dispute_Phase7_Phase8_Blueprint.md`, §7.5) and the backend DTOs. Where the backend differs, see [Known gaps](#known-gaps-with-the-real-backend). (`src/types/dispute.ts` mentions a `docs/api/disputes-contract.md`; that file was never added to the repo.)
 
 ### Component conventions
 
@@ -226,7 +262,9 @@ The frontend is built **contract-first** against MSW, so screens work before the
 - Test files sit next to the code they test (`*.test.ts` / `*.test.tsx`).
 - `renderWithProviders({ route, preloadedState })` renders the full app with a fresh store and an in-memory router, and returns `{ store, router, ... }`.
 - Slice logic can be tested without React by dispatching actions to `makeStore()`.
-- MSW answers every request in tests. An unhandled request fails the test (`onUnhandledRequest: 'error'`).
+- MSW answers every request in tests. An unhandled request fails the test (`onUnhandledFrame: 'error'`).
+- After each test, `setupTests.ts` also clears `localStorage`, the theme on `<html>` and the mock DB, and restores a light-OS `matchMedia`. Use `createMatchMedia(true)` from `src/test/matchMedia.ts` to simulate a dark OS.
+- jsdom has no `<dialog>` modal support; `setupTests.ts` stubs `showModal()` / `close()`.
 
 ## Adding a feature (example: "Disputes")
 
@@ -241,9 +279,25 @@ The frontend is built **contract-first** against MSW, so screens work before the
 
 | Slice | Routes | Status |
 | ----- | ------ | ------ |
-| Customer dispute tracking (Increment 1, POC-08) | `/disputes`, `/disputes/:id` | Done — mocked API, contract in `docs/api/disputes-contract.md` |
-| Customer dispute submission (Increment 1, POC-07) | `/disputes/new` | Done — `GET /transactions`, `POST /disputes`, demo user picker; mocked and wired to the backend contract |
-| Analyst workspace | `/analyst` | Not started |
+| Customer dispute tracking (Increment 1, POC-08, FE-2) | `/disputes`, `/disputes/:id` | Done on mocks. The detail page refreshes every 5 s while a case is open (Increment 2, FE-1). Needs contract fixes for the real backend (see below) |
+| Customer dispute submission (Increment 1, POC-07, FE-1) | `/disputes/new` | Done — `GET /transactions`, `POST /disputes`; works on mocks and matches the backend contract |
+| Demo users (Increment 0, FE-1) | header | Done — HTTP Basic demo users, switch with confirmation and soft reset |
+| Theme / dark mode | header | Done — Light / Dark / System, saved per device |
+| Notification delivery status (Increment 3) | `/disputes/:id` | Not started — needs a backend endpoint |
+| Analyst workspace (Increment 2, POC-11, FE-2) | `/analyst` | Not started |
+
+## Known gaps with the real backend
+
+The backend controllers exist for transactions and disputes. Checked against the code on 2026-10-22:
+
+| Gap | Frontend | Backend | Affects |
+| --- | --- | --- | --- |
+| Page envelope | `PagedResponse.items` (`types/dispute.ts`) | `PageResponse.content` | My Disputes list |
+| List rows | Nested `dispute.transaction.merchantName` | Flat `DisputeSummaryResponse` (`merchantName`, `amount`, `currency` at the top level) | My Disputes list |
+| Case history | `GET /disputes/{id}/timeline` | Not implemented | Detail page "History" (shows empty) |
+| Customer id on a case | `Dispute.customerId` | Not in `DisputeResponse` | Nothing visible; the field is unused on screen |
+
+The submit flow and transactions already use the backend shapes (`PageResponse.content`, `errorCode`, `violations`).
 
 ## Demo script (mock API)
 
@@ -252,4 +306,5 @@ Run with `VITE_USE_MOCKS=true`, as **Demo Customer 01**:
 1. **Report a charge** → Transaction "Supermercado Éxito · COP 154,300" → Possible duplicate: the other Éxito charge (listed under "Same amount") → **Submit dispute**. A toast confirms and the new case opens.
 2. Submit the same pair again → "There is already an open dispute…" (`409`).
 3. Choose "Librería Nacional" (posted in July) → "…within 60 days of posting" (`422`).
-4. Switch the **Demo user** to Demo Customer 02 → the data changes; they have a single charge, so nothing can be disputed.
+4. Open any case, then switch the **Demo user** to Demo Customer 02 → a confirmation dialog appears. **Cancel** keeps everything as it was; **Switch user** returns to a clean home page with a single "Now using Demo Customer 02" toast. Customer 02 has a single charge, so nothing can be disputed.
+5. Change **Theme** to Dark, then reload → the dark theme stays, with no white flash. **System** follows the OS appearance.

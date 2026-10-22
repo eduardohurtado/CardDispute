@@ -8,7 +8,7 @@
 ## 0. Baseline and intentional design choices
 
 - Java 17, Spring Boot 3.5.x, Camunda 7.24 Community Edition embedded, SQL Server 2022, RabbitMQ, React/TypeScript, ELK, Docker Compose, GitHub Actions.
-- Frontend (already bootstrapped in `frontend/`, see `frontend/README.md`): React 19 + TypeScript 5 (strict), Vite 8, Tailwind CSS v4, React Router v7 (data mode), Redux Toolkit 2 + RTK Query, Vitest + Testing Library. Requires Node.js 22.13+.
+- Frontend (`frontend/`, see `frontend/README.md`): React 19 + TypeScript 5 (strict), Vite 8, Tailwind CSS v4, React Router v7 (data mode), Redux Toolkit 2 + RTK Query, MSW v3 mock API, Vitest + Testing Library. Requires Node.js 22.13+. In dev, Vite proxies `/api` to the backend (the backend has no CORS setup).
 - **Node.js has been included** as a small RabbitMQ consumer for mock notifications because the team explicitly wants hands-on practice with the client's stack. It owns no core dispute rules or case state.
 - One Java deployable (modular monolith), one React frontend, one small Node worker. Not a microservices-based banking platform.
 - Camunda is embedded in Spring Boot; `camunda` BPM tables are managed by Camunda and **not** recreated as JPA entities. Business tables are separated logically in schema `dispute`; for easiest Camunda integration, determine runtime schema/default schema during bootstrap rather than assuming separate Camunda schema configuration is automatic.
@@ -261,59 +261,69 @@ card-dispute/
 
 ## 7.4 Frontend structure (React SPA, not a modular monolith backend)
 
-The frontend skeleton already exists in `frontend/`; `frontend/README.md` is the source of truth for setup, scripts and conventions. It is a single SPA organized **by layer** (`pages/`, `components/`, `store/`, `routes/`), not by feature folder. Files marked _(planned)_ are the screens and APIs this POC still has to add, following the "Adding a feature" steps in the README.
+`frontend/README.md` is the source of truth for setup, scripts and conventions. The app is a single SPA organized **by layer** (`pages/`, `components/`, `store/`, `routes/`), not by feature folder. State as of 2026-10-22; files marked _(planned)_ are not built yet.
 
 ```
 frontend/
-├── index.html                       # HTML entry; loads src/main.tsx
-├── vite.config.ts                   # Vite, Tailwind, @/ alias, Vitest config
-├── .env.example                     # VITE_API_URL (default /api)
-├── public/                          # static files (favicon, manifest)
+├── index.html                       # HTML entry; inline script applies the saved theme before first paint
+├── vite.config.ts                   # Vite, Tailwind, @/ alias, /api dev proxy, Vitest config
+├── .env.example                     # VITE_API_URL, BACKEND_URL, VITE_DEMO_PASSWORD, VITE_USE_MOCKS
+├── .env.test                        # absolute API URL for Vitest
+├── public/                          # static files + MSW worker script
 └── src/
-    ├── main.tsx                     # <Provider store> → <RouterProvider router>
-    ├── index.css                    # Tailwind import + base styles
-    ├── routes/
-    │   ├── paths.ts                 # URL constants (no hard-coded URLs)
-    │   ├── routes.tsx               # route tree; pages loaded with `lazy`
-    │   └── router.tsx               # createBrowserRouter(routes)
+    ├── main.tsx                     # starts MSW if enabled; <Provider> → <ThemeSync/> + <RouterProvider>
+    ├── index.css                    # Tailwind import, `dark:` variant tied to data-theme, base styles
+    ├── config/
+    │   ├── demoUsers.ts             # synthetic demo users (match backend application.yml) + Basic auth header
+    │   └── theme.ts                 # theme storage, OS setting, applyTheme
+    ├── routes/                      # paths.ts (URL constants), routes.tsx (lazy pages), router.tsx
     ├── layouts/
-    │   └── RootLayout.tsx           # header, sidebar, <Outlet />, toasts
+    │   └── RootLayout.tsx           # header (Demo user + Theme menus), sidebar, <Outlet />, toasts
     ├── pages/
-    │   ├── HomePage.tsx
-    │   ├── NotFoundPage.tsx
-    │   ├── SubmitDisputePage.tsx    # (planned) customer submission
-    │   ├── MyDisputesPage.tsx       # (planned) customer tracking list
-    │   ├── DisputeDetailPage.tsx    # (planned) status, decision, timeline
-    │   ├── AnalystQueuePage.tsx     # (planned) analyst work queue
+    │   ├── HomePage.tsx · NotFoundPage.tsx
+    │   ├── SubmitDisputePage.tsx    # /disputes/new — customer submission (FE-1, POC-07)
+    │   ├── MyDisputesPage.tsx       # /disputes — customer tracking list (FE-2, POC-08)
+    │   ├── DisputeDetailPage.tsx    # /disputes/:id — status, decision, facts, history; refreshes while open
+    │   ├── AnalystQueuePage.tsx     # (planned) analyst work queue (FE-2, POC-11)
     │   └── AnalystReviewPage.tsx    # (planned) evidence + decision form
     ├── components/
+    │   ├── ui/                      # generic primitives: Badge, Timeline, Lifecycle, Facts, StateBlock,
+    │   │                            #   Spinner, ConfirmDialog; tone.ts (light + dark classes)
+    │   ├── disputes/                # StatusBadge, DisputeTimeline, DisputeLifecycle, DisputeFacts, …
+    │   ├── session/DemoUserPicker.tsx  # switch user, with confirmation + soft reset
+    │   ├── theme/                   # ThemePicker (Light/Dark/System), ThemeSync
     │   ├── RouteErrorBoundary.tsx
-    │   ├── Toaster.tsx              # toast notifications from uiSlice
-    │   └── …                        # (planned) StatusBadge, Timeline, DisputeForm
+    │   └── Toaster.tsx
     ├── store/
-    │   ├── store.ts                 # makeStore, combineSlices, RootState/AppDispatch
-    │   ├── hooks.ts                 # useAppSelector / useAppDispatch
-    │   ├── index.ts                 # public exports (import from "@/store")
+    │   ├── store.ts · hooks.ts · index.ts
     │   ├── api/
-    │   │   ├── baseApi.ts           # single RTK Query API (base URL from VITE_API_URL)
-    │   │   └── …                    # (planned) transactions, disputes, analyst endpoints
+    │   │   ├── baseApi.ts           # single RTK Query API; sends Authorization: Basic from the session
+    │   │   ├── transactionsApi.ts   # GET /v1/transactions, /v1/transactions/{id}
+    │   │   ├── disputesApi.ts       # GET /v1/disputes, /{id}, /{id}/timeline
+    │   │   └── disputeSubmissionApi.ts  # POST /v1/disputes
     │   └── slices/
-    │       ├── ui/uiSlice.ts        # sidebar + toasts
-    │       └── …                    # (planned) session slice: synthetic user + role
-    └── test/
-        └── renderWithProviders.tsx  # full app with fresh store + memory router
+    │       ├── ui/uiSlice.ts        # sidebar, toasts, theme preference + OS setting
+    │       └── session/             # sessionSlice (current demo user), switchDemoUserAndReset thunk
+    ├── types/                       # dispute.ts, transaction.ts, api.ts (PageResponse, ApiProblem)
+    ├── utils/                       # format.ts, apiError.ts, submitErrors.ts
+    ├── mocks/                       # MSW: fixtures.ts, handlers.ts (same rules as the backend), browser.ts, server.ts
+    └── test/                        # renderWithProviders.tsx, matchMedia.ts
 ```
 
-**Conventions (from `frontend/README.md`):**
+**Conventions and decisions (details in `frontend/README.md`):**
 
-- **Routing:** every route is a child of `RootLayout`; each page is lazy-loaded into its own chunk; `*` shows `NotFoundPage`; route errors show `RouteErrorBoundary`. URLs live in `paths.ts`. Role guards (customer vs analyst) are added at the route level.
-- **Server data** (transactions, disputes, analyst tasks) lives only in the **RTK Query** cache. Each area adds endpoints with `baseApi.injectEndpoints(...)` and uses the generated hooks (e.g. `useGetDisputesQuery`, `useCreateDisputeMutation`). Cache tags (e.g. `Dispute`, `AnalystTask`) are declared in `baseApi.tagTypes` so a submit/decision refreshes lists.
-- **Client state** (sidebar, toasts, synthetic session/role) lives in **slices** registered in `combineSlices(...)`. Always use the typed hooks from `@/store`.
-- **Styling:** Tailwind utility classes in `className`; full class names only (map status → class, as `Toaster.tsx` does for variants). No separate design system.
-- **API base URL:** `VITE_API_URL` defaults to `/api`. The backend contract uses `/api/v1` (§7.5), so either set `VITE_API_URL=/api/v1` or prefix endpoint paths with `v1/`; pick one in Increment 0.
-- **Tests:** Vitest + Testing Library + jsdom; test files sit next to the code (`*.test.tsx`); `renderWithProviders({ route, preloadedState })` for page tests; slices tested directly against `makeStore()`.
+- **Routing:** every route is a child of `RootLayout`; each page is lazy-loaded into its own chunk; `*` shows `NotFoundPage`; route errors show `RouteErrorBoundary`. URLs live in `paths.ts`. Role guards (customer vs analyst) will be added at the route level with the analyst workspace.
+- **Server data** lives only in the **RTK Query** cache. Each area adds endpoints with `baseApi.injectEndpoints(...)`. Cache tags `Dispute` and `Transaction` are declared in `baseApi`; submitting a dispute invalidates `Dispute`, so lists refresh.
+- **Client state** lives in slices: `uiSlice` (sidebar, toasts, theme) and `sessionSlice` (demo user). Always use the typed hooks from `@/store`.
+- **API base URL (decided):** `VITE_API_URL=/api` and endpoint paths carry the `v1/` prefix. In dev, Vite proxies `/api` to `BACKEND_URL` (default `http://localhost:8080`).
+- **Demo login (decided):** the backend authenticates synthetic users with HTTP Basic (`customer01`, `customer02`, `analyst01`; password from config). The header **Demo user** menu picks the user; `baseApi` sends `Authorization: Basic …`. The backend still enforces identity and ownership (§7.5).
+- **Switching user:** asks for confirmation (`ConfirmDialog`), then **soft-resets** the app: it goes to the home page and clears the RTK Query cache, toasts and sidebar state, then shows one "Now using …" toast. The theme is kept, since it's a device setting. Any new slice holding session data must reset on `switchDemoUser`.
+- **Theme:** a **Theme** menu (Light / Dark / System, default System) next to Demo user. The state is in `uiSlice`, saved in `localStorage`, and System follows the OS live. Every color class has a `dark:` partner, following the mapping table in the README.
+- **Mock API:** MSW serves every endpoint when `VITE_USE_MOCKS=true` and in all tests. `POST /disputes` applies the same submission rules as `DisputeService.submit`. Fixtures are deterministic.
+- **Styling:** Tailwind utility classes in `className`; full class names only. No separate design system.
+- **Tests:** Vitest + Testing Library + jsdom, next to the code (`*.test.ts(x)`); `renderWithProviders({ route, preloadedState })` for page tests; slices and thunks tested against `makeStore()`. Suite: 145 tests at the time of writing.
 
-Three user-visible areas are enough: customer submission, customer tracking, analyst workspace (subpages as needed). This layer-based layout mirrors domain terms in page/endpoint names but does not impose the backend modular-monolith pattern on React.
+Three user-visible areas are enough: customer submission, customer tracking, analyst workspace (subpages as needed). This layer-based layout mirrors domain terms in page and endpoint names but does not impose the backend modular-monolith pattern on React.
 
 ### Node worker structure
 
@@ -349,7 +359,14 @@ Base path `/api/v1`. Use JSON; request/response DTOs, Problem Details errors (`a
 | POST   | `/internal/v1/notification-receipts`      | Notifications       | Node worker submits idempotent delivery receipt; restricted   | 200/201          |
 | GET    | `/actuator/health`                        | Shared              | Basic service health, local only                              | 200 / 503        |
 
-**Creation request (minimal):** `{ transactionId, candidateTransactionId?, reasonCode: "POSSIBLE_DUPLICATE", description? }`. Principal `customerId` must come from authenticated synthetic principal, **not** be trusted from request body. Frontend can derive candidate from choices or system can auto-identify candidate; choose one UX and keep REST contract stable.
+**Creation request:** `{ transactionId, candidateTransactionId, reasonCode: "POSSIBLE_DUPLICATE", description? }` (description ≤ 500 characters). **Decided:** the customer selects both charges, so `candidateTransactionId` is required (`CreateDisputeRequest.java`). Principal `customerId` comes from the authenticated synthetic principal and is **not** accepted from the request body.
+
+**As implemented (backend + frontend, 2026-10-22):**
+- **Authentication:** HTTP Basic with synthetic demo users configured in `application.yml`.
+- **Paged lists:** `{ content, page, size, totalElements, totalPages }` (`PageResponse.java`).
+- **Errors:** Problem Details plus `errorCode` and `correlationId`; `400` responses also carry `violations: [{ field, message }]`. Submission codes: `OPEN_DISPUTE_EXISTS` (409), `TRANSACTION_NOT_POSTED`, `DISPUTE_WINDOW_EXPIRED`, `INVALID_CANDIDATE` (422), `TRANSACTION_NOT_FOUND` (404), `VALIDATION_FAILED` (400).
+- **Implemented endpoints:** transactions list and detail; disputes submit, list and detail. **Not implemented yet:** `/disputes/{id}/timeline` and the analyst endpoints.
+- **Frontend gaps:** the tracking screens still expect `items` instead of `content`, nested transactions instead of the flat `DisputeSummaryResponse`, and the timeline endpoint. See `frontend/README.md`, "Known gaps with the real backend".
 
 **Decision request:** `{ decision: "DUPLICATE_SUPPORTED" | "NOT_SUPPORTED", rationale: "..." }`; actor comes from authenticated analyst. Reject stale/completed task with `409`.
 
@@ -363,7 +380,7 @@ Base path `/api/v1`. Use JSON; request/response DTOs, Problem Details errors (`a
 
 ```
 +--------------------------------------------------------------+
-| Card Dispute   [Customer: Demo Customer 01]  [My Disputes]    |
+| Card Dispute   [Demo user: Demo Customer 01 v] [Theme: System v] |
 +--------------------------------------------------------------+
 | Report a possible duplicate card charge                      |
 | Transaction [ Coffee Shop · COP 35,000 · 09/10 ] [Select v]   |
@@ -407,17 +424,25 @@ Base path `/api/v1`. Use JSON; request/response DTOs, Problem Details errors (`a
 +--------------------------------------------------------------+
 ```
 
-Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isError`), form validation, status badges, a short read-only history, and clear messages for 409 conflict and session role. Success and error feedback (e.g. "Dispute submitted", "Task already completed") uses the existing toast system (`showToast` in `uiSlice` + `Toaster`). Screens are styled with Tailwind; no design system or elaborate dashboards needed.
+Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isError`), form validation, status badges, a short read-only history, and clear messages for 409 conflict and session role. Success and error feedback (e.g. "Dispute submitted", "Task already completed") uses the existing toast system (`showToast` in `uiSlice` + `Toaster`). Screens are styled with Tailwind, in light and dark themes; no design system or elaborate dashboards needed.
+
+**As built (customer screens):**
+- **Submit Dispute:**
+  - "Possible duplicate" stays disabled until a transaction is chosen, then lists same-amount charges first.
+  - Business errors (409, 422) appear in an alert above the button, and field errors next to their fields.
+  - Success shows a toast and opens the new case.
+- **Detail:** shows Progress, Decision, Case details and History, and refreshes every 5 s while the case is open.
+- **Header:** the **Demo user** and **Theme** menus. Switching user opens a confirmation dialog ("Switch to Demo Customer 02?"), and confirming returns to a clean home page.
 
 ## 7.7 Messaging, security, observability, tests
 
 **RabbitMQ:** one topic/direct exchange `card-dispute.events`, routing key `dispute.resolved.v1`, durable main queue `card-dispute.notifications`, dead-letter queue `card-dispute.notifications.dlq`; do not require Kafka. Delivery policy: manual ack after mock delivery and callback, retry limited to 3 attempts with progressive delay, DLQ after exhaustion. Define an explicit durable retry implementation during coding (Rabbit delayed-message plugin is NOT assumed). Publisher confirms before outbox `PUBLISHED` marker. Consumer dedup by `eventId` through backend receipt uniqueness. Both backend and Node worker log `eventId`, `disputeId`, and `correlationId`.
 
-**Security:** synthetic users and roles (`CUSTOMER`, `DISPUTE_ANALYST`), backend ownership checks, internal worker credential for callback. No real banking data. Disable public access to Camunda admin and management endpoints. Local-only deployment.
+**Security:** synthetic users and roles (`CUSTOMER`, `DISPUTE_ANALYST`), authenticated with HTTP Basic; backend ownership checks (a foreign case answers 404); internal worker credential for callback. The frontend only picks the demo credentials and clears all session data when the user switches. No real banking data. Disable public access to Camunda admin and management endpoints. Local-only deployment.
 
 **Observability:** JSON logging from Java and Node with `timestamp`, `level`, `service`, `correlationId`, `disputeId`, `event`, `errorCode`; logs sent to ELK; Kibana saved queries: dispute lifecycle, workflow errors, pending/retried notifications. No payment PAN/CVV, no full card data.
 
-**Test layers:** JUnit for matching rules, Spring integration tests for DB/engine including rollback, contract tests REST, RabbitMQ consumer retry/idempotency tests, React component/form and slice tests (Vitest + Testing Library, using `renderWithProviders`), one browser E2E test. Smoke with 25 concurrent users; measure errors and p95 without claiming production SLA.
+**Test layers:** JUnit for matching rules, Spring integration tests for DB/engine including rollback, contract tests REST, RabbitMQ consumer retry/idempotency tests, React component/form, slice and thunk tests (Vitest + Testing Library + MSW, using `renderWithProviders`), one browser E2E test. Smoke with 25 concurrent users; measure errors and p95 without claiming production SLA.
 
 ## 8. Implementation planning — team of five
 
@@ -428,7 +453,10 @@ Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isEr
 - BE-2: Create monorepo conventions, Java Spring Boot skeleton with embedded Camunda startup and SQL Server connection, initial ADR notes.
 - BE-1: Liquibase baseline, synthetic fixture plan, skeleton domain module and first migration.
 - FS: Docker Compose for SQL Server, RabbitMQ, backend, Node, React; CI pipeline skeleton; agree API request/response examples.
-- FE-1/FE-2: React app skeleton, routes, shared styles, fake-data forms. **No backend dependence initially.** _Status: skeleton done_ — Vite + React 19 + TypeScript, React Router v7 with `RootLayout` and lazy pages, Redux store with `uiSlice` and empty RTK Query `baseApi`, Tailwind CSS v4, toast notifications, Vitest setup. Remaining: add customer/analyst routes and placeholder pages, synthetic session/role slice, settle the `VITE_API_URL` vs `/api/v1` base path.
+- FE-1/FE-2: React app skeleton, routes, shared styles, fake-data forms. **No backend dependence initially.** _Status: done._ The app skeleton is in place (Vite, React Router with lazy pages, Redux + RTK Query, Tailwind, toasts, Vitest), plus:
+  - the MSW mock API
+  - a session slice with HTTP Basic demo users
+  - the `/api` base path with `v1/` endpoint prefixes and a dev proxy
 - **Exit:** fresh clone -> documented setup -> backend health, Camunda start, SQL Server available, frontend loads, PR checks pass.
 
 ### Increment 1 — Vertical slice: Automatic decision
@@ -436,14 +464,14 @@ Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isEr
 - BE-1: Customer, transaction, dispute, decision schemas and rule evaluator; create/list/detail APIs.
 - BE-2: Camunda process (start -> assessment -> auto decision -> end); audit transitions and workflow correlation.
 - FS: API integration smoke tests / seeded demo accounts; early contract agreement.
-- FE-1: transaction selection + submit UI (transactions/disputes endpoints injected into `baseApi`); FE-2: read-only case status/timeline components.
+- FE-1: transaction selection + submit UI (transactions/disputes endpoints injected into `baseApi`) — _done (POC-07)_. FE-2: read-only case status/timeline components — _done on mocks (POC-08)_; contract fixes pending for the real backend (§7.5).
 - **Demo:** select two synthetic transactions -> submit -> auto resolve -> view outcome. No RabbitMQ yet.
 
 ### Increment 2 — Manual review
 
 - BE-2: BPMN user task, review timer, query and task completion integration.
 - BE-1: analyst decision validation, final state consistency, audit entry.
-- FE-2: analyst queue and review UI; FE-1: customer tracking of pending review.
+- FE-2: analyst queue and review UI — _not started_. FE-1: customer tracking of pending review — _done_ (the detail page refreshes every 5 s while a case is open).
 - FS: E2E path and role enforcement checks.
 - **Demo:** ambiguous case enters review; analyst decides with rationale; customer sees outcome. Timer exception test.
 
@@ -452,14 +480,14 @@ Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isEr
 - BE-1: minimal outbox schema + terminal event creation in same transaction.
 - FS: RabbitMQ configuration, Node consumer + backend receipt callback, explicit retry and DLQ behavior.
 - BE-2: verify process completion and event transitions don't contradict business state.
-- Frontend: notification delivery status in detail if useful (read-only).
+- Frontend: notification delivery status in detail if useful (read-only) — _waiting for a backend endpoint_.
 - **Demo:** RabbitMQ offline during resolution -> event pending -> resumes -> Node receives once effectively; duplicate delivery ignored.
 
 ### Increment 4 — Observability + delivery
 
 - FS & BE-2: structured logging, ELK dashboards/queries, Docker and CI finalized.
 - BE-1: seed and concurrency verification; DB constraints and negative tests.
-- FE-1/FE-2: UX and form error states, demo polish.
+- FE-1/FE-2: UX and form error states, demo polish. _Done early:_ submit form error states, dark mode, a confirmed demo-user switch with a soft reset, and the demo script in `frontend/README.md`.
 - Everyone: scenario scripts and knowledge transfer.
 - **Demo:** full automatic, manual, rejected and timeout flows with inspectable logs and message retries.
 
@@ -483,6 +511,16 @@ Frontend details: loading/empty/error states (from RTK Query `isLoading` / `isEr
 | POC-14 | ELK traceability                    | BE-2 + FS  | POC-06,13    | Search case by disputeId               |
 | POC-15 | CI/CD build, tests, images          | FS         | POC-02       | PR build and tests reproducible        |
 | POC-16 | E2E scenarios and documentation     | Whole team | 01–15        | Acceptance evidence available          |
+
+**Frontend status (2026-10-22):**
+
+| ID | Status |
+| --- | --- |
+| POC-07 | Done. The submit flow works against the mock API and matches the backend contract |
+| POC-08 | Done on mocks. Three contract gaps remain before it works against the backend (§7.5) |
+| POC-11 | Not started |
+
+Not in the backlog but delivered: demo-user login and confirmed switch, Light/Dark/System theme.
 
 ### Team operating agreement
 
@@ -510,8 +548,8 @@ No money movement, real email/SMS, PAN/CVV, external networks, cloud/AKS product
 
 ## Open, narrow design choices to settle in kickoff (not new discovery phase)
 
-1. How to represent initial invalid cases consistently: immediate API rejection vs recorded `REJECTED_INELIGIBLE` workflow case.
-2. Whether customer explicitly selects duplicate candidate or matching engine finds it automatically.
+1. ~~How to represent initial invalid cases consistently: immediate API rejection vs recorded `REJECTED_INELIGIBLE` workflow case.~~ **Decided:** immediate API rejection with `422`; `REJECTED_INELIGIBLE` stays reserved (`DisputeStatus.java`).
+2. ~~Whether customer explicitly selects duplicate candidate or matching engine finds it automatically.~~ **Decided:** the customer selects both charges; `candidateTransactionId` is required.
 3. Seed dataset currency and merchant normalization examples.
 4. Whether notification receipt is written via restricted backend callback (recommended) versus a dedicated worker-owned persistence store.
 5. Final ADR approvals on embedded Camunda and minimal Outbox.

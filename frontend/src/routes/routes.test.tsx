@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitForElementToBeRemoved } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
@@ -48,6 +48,7 @@ describe('layout state', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Welcome to Card Dispute!');
 
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    // The toast fades out before it is removed.
+    await waitForElementToBeRemoved(() => screen.queryByRole('status'));
   });
 });
