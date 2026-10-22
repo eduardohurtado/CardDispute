@@ -1,9 +1,17 @@
 import { http, HttpResponse } from 'msw/http';
 import { DEFAULT_DEMO_USER, findDemoUser } from '@/config/demoUsers';
 import type { ApiProblem, FieldViolation, PageResponse } from '@/types/api';
-import type { Dispute, DisputeStatus, DisputeTransaction, TimelineEvent } from '@/types/dispute';
 import type { CreateDisputeRequest, Transaction } from '@/types/transaction';
-import { demoDisputes, demoTimeline, demoTransactions, MOCK_NOW, type MockTransaction } from './fixtures';
+import { DEMO_ANALYST_HEADER, DEMO_ANALYST_ID, DEMO_CUSTOMER_HEADER, DEMO_CUSTOMER_ID } from '@/config/demoSession';
+import type {
+  Dispute,
+  DisputeDecisionType,
+  DisputeStatus,
+  DisputeTransaction,
+  TimelineEvent,
+} from '@/types/dispute';
+import type { AnalystQueue, AnalystTask, AnalystTaskSummary } from '@/types/analyst';
+import { demoAnalystTasks, demoDisputes, demoTimeline, demoTransactions, MOCK_NOW, MockTransaction } from './fixtures';
 
 /**
  * Request paths are regular expressions so a handler matches whatever origin
@@ -15,6 +23,9 @@ export const DISPUTE_PATH = /\/api\/v1\/disputes\/([^/?#]+)\/?(\?.*)?$/;
 export const TIMELINE_PATH = /\/api\/v1\/disputes\/([^/?#]+)\/timeline\/?(\?.*)?$/;
 export const TRANSACTIONS_PATH = /\/api\/v1\/transactions\/?(\?.*)?$/;
 export const TRANSACTION_PATH = /\/api\/v1\/transactions\/([^/?#]+)\/?(\?.*)?$/;
+export const ANALYST_TASKS_PATH = /\/api\/v1\/analyst\/tasks\/?(\?.*)?$/;
+export const ANALYST_TASK_PATH = /\/api\/v1\/analyst\/tasks\/([^/?#]+)\/?(\?.*)?$/;
+export const ANALYST_DECISION_PATH = /\/api\/v1\/analyst\/tasks\/([^/?#]+)\/decision\/?(\?.*)?$/;
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -53,6 +64,9 @@ function allDisputes(): Dispute[] {
   return [...createdDisputes, ...demoDisputes];
 }
 
+/** A task is due soon when its deadline is less than a day away. */
+const DUE_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /** Problem Details response, as described by the blueprint error policy. */
 function problem(
   status: number,
@@ -82,6 +96,7 @@ function businessProblem(status: number, errorCode: string, detail: string) {
   });
 }
 
+
 /** The customer of the request, read from the HTTP Basic credentials. */
 function customerOf(request: Request): string {
   const header = request.headers.get('Authorization') ?? '';
@@ -98,6 +113,16 @@ function customerOf(request: Request): string {
 }
 
 function idOf(url: string, path: RegExp): string | null {
+  const match = path.exec(url);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+/** True when the request carries an analyst identity. */
+function hasAnalyst(request: Request): boolean {
+  return request.headers.get(DEMO_ANALYST_HEADER) !== null;
+}
+
+function disputeIdOf(url: string, path: RegExp): string | null {
   const match = path.exec(url);
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
@@ -135,6 +160,34 @@ function validationProblem(violations: FieldViolation[]) {
     violations,
   });
 }
+
+/** The decision of a request body, or `null` when it is not a known one. */
+function parseDecision(value: unknown): DisputeDecisionType | null {
+  return value === 'DUPLICATE_SUPPORTED' || value === 'NOT_SUPPORTED' ? value : null;
+}
+
+/** The queue a task belongs to, relative to the fixed mock clock. */
+export function queueOf(task: AnalystTask): AnalystQueue {
+  const dueIn = new Date(task.dueAt).getTime() - new Date(MOCK_NOW).getTime();
+  return dueIn <= DUE_SOON_WINDOW_MS ? 'DUE_SOON' : 'PENDING';
+}
+
+/** The projection the work queue returns. */
+function toSummary(task: AnalystTask): AnalystTaskSummary {
+  return {
+    taskId: task.taskId,
+    disputeId: task.disputeId,
+    customerId: task.customerId,
+    status: task.status,
+    merchantName: task.merchantName,
+    amount: task.amount,
+    currency: task.currency,
+    assessmentOutcome: task.assessmentOutcome,
+    matchKind: task.matchKind,
+    submittedAt: task.submittedAt,
+    dueAt: task.dueAt,
+  };
+};
 
 export const handlers = [
   http.get(TRANSACTIONS_PATH, ({ request }) => {
@@ -306,6 +359,352 @@ export const handlers = [
     if (!dispute || dispute.customerId !== customerId) {
       return caseNotFound();
     }
+
+    return HttpResponse.json(dispute);
+  }),
+
+  http.get(ANALYST_TASKS_PATH, ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const url = new URL(request.url);
+    const queue = url.searchParams.get('queue');
+    const page = toInteger(url.searchParams.get('page'), 0);
+    const size = toInteger(url.searchParams.get('size'), DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
+
+    const open = demoAnalystTasks.filter((task) => task.decision === null);
+    const counts = open.reduce<Record<AnalystQueue, number>>(
+      (accumulator, task) => {
+        accumulator[queueOf(task)] += 1;
+        return accumulator;
+      },
+      { PENDING: 0, DUE_SOON: 0 },
+    );
+
+    const filtered =
+      queue === 'PENDING' || queue === 'DUE_SOON'
+        ? open.filter((task) => queueOf(task) === queue)
+        : open;
+    const sorted = [...filtered].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+    const start = page * size;
+
+    return HttpResponse.json({
+      items: sorted.slice(start, start + size).map(toSummary),
+      page,
+      size,
+      totalElements: sorted.length,
+      totalPages: Math.ceil(sorted.length / size),
+      queueCounts: counts,
+    });
+  }),
+
+  http.get(ANALYST_TASK_PATH, ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const taskId = disputeIdOf(request.url, ANALYST_TASK_PATH);
+    const task = demoAnalystTasks.find((candidate) => candidate.taskId === taskId);
+
+    if (!task) {
+      return problem(404, 'task-not-found', 'Task not found', 'The task does not exist.');
+    }
+
+    return HttpResponse.json(task);
+  }),
+
+  http.post(ANALYST_DECISION_PATH, async ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const taskId = disputeIdOf(request.url, ANALYST_DECISION_PATH);
+    const task = demoAnalystTasks.find((candidate) => candidate.taskId === taskId);
+
+    if (!task) {
+      return problem(404, 'task-not-found', 'Task not found', 'The task does not exist.');
+    }
+
+    if (task.decision) {
+      return problem(
+        409,
+        'task-already-completed',
+        'Task already completed',
+        'Another analyst completed this task.',
+      );
+    }
+
+    const body = (await request.json()) as { decision?: unknown; rationale?: unknown };
+    const requestedDecision = parseDecision(body?.decision);
+
+    if (!requestedDecision) {
+      return problem(
+        422,
+        'invalid-decision',
+        'Invalid decision',
+        'The decision must be DUPLICATE_SUPPORTED or NOT_SUPPORTED.',
+      );
+    }
+
+    if (typeof body.rationale !== 'string' || body.rationale.trim().length === 0) {
+      return problem(
+        422,
+        'rationale-required',
+        'Rationale required',
+        'An analyst decision requires a rationale.',
+      );
+    }
+
+    const newStatus =
+      requestedDecision === 'DUPLICATE_SUPPORTED'
+        ? ('RESOLVED_DUPLICATE_SUPPORTED' as const)
+        : ('RESOLVED_NOT_SUPPORTED' as const);
+
+    const decision = {
+      decisionType: requestedDecision,
+      decisionSource: 'ANALYST' as const,
+      rationale: body.rationale.trim(),
+      decidedBy: DEMO_ANALYST_ID,
+      decidedAt: MOCK_NOW,
+    };
+
+    const dispute = demoDisputes.find((candidate) => candidate.disputeId === task.disputeId);
+    if (!dispute) {
+      return problem(404, 'case-not-found', 'Case not found', 'The case does not exist.');
+    }
+
+    dispute.status = newStatus;
+    dispute.decision = decision;
+    dispute.updatedAt = MOCK_NOW;
+    dispute.resolvedAt = MOCK_NOW;
+
+    task.status = newStatus;
+    task.decision = decision;
+
+    const events: TimelineEvent[] = [
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000071',
+        eventType: 'REVIEW_COMPLETED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: 'AWAITING_ANALYST',
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-71',
+        details: 'The analyst completed the review.',
+        occurredAt: MOCK_NOW,
+      },
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000072',
+        eventType: 'STATE_CHANGED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: newStatus,
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-72',
+        details: null,
+        occurredAt: MOCK_NOW,
+      },
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000073',
+        eventType: 'DECIDED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: newStatus,
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-73',
+        details: `Decision: ${requestedDecision === 'DUPLICATE_SUPPORTED' ? 'the charge was a duplicate.' : 'the charge was not a duplicate.'}`,
+        occurredAt: MOCK_NOW,
+      },
+    ];
+
+    demoTimeline[task.disputeId] = [...(demoTimeline[task.disputeId] ?? []), ...events];
+    task.timeline = [...task.timeline, ...events];
+
+    return HttpResponse.json(dispute);
+  }),
+
+  http.get(ANALYST_TASKS_PATH, ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const url = new URL(request.url);
+    const queue = url.searchParams.get('queue');
+    const page = toInteger(url.searchParams.get('page'), 0);
+    const size = toInteger(url.searchParams.get('size'), DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
+
+    const open = demoAnalystTasks.filter((task) => task.decision === null);
+    const counts = open.reduce<Record<AnalystQueue, number>>(
+      (accumulator, task) => {
+        accumulator[queueOf(task)] += 1;
+        return accumulator;
+      },
+      { PENDING: 0, DUE_SOON: 0 },
+    );
+
+    const filtered =
+      queue === 'PENDING' || queue === 'DUE_SOON'
+        ? open.filter((task) => queueOf(task) === queue)
+        : open;
+    const sorted = [...filtered].sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+    const start = page * size;
+
+    return HttpResponse.json({
+      items: sorted.slice(start, start + size).map(toSummary),
+      page,
+      size,
+      totalElements: sorted.length,
+      totalPages: Math.ceil(sorted.length / size),
+      queueCounts: counts,
+    });
+  }),
+
+  http.get(ANALYST_TASK_PATH, ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const taskId = disputeIdOf(request.url, ANALYST_TASK_PATH);
+    const task = demoAnalystTasks.find((candidate) => candidate.taskId === taskId);
+
+    if (!task) {
+      return problem(404, 'task-not-found', 'Task not found', 'The task does not exist.');
+    }
+
+    return HttpResponse.json(task);
+  }),
+
+  http.post(ANALYST_DECISION_PATH, async ({ request }) => {
+    if (!hasAnalyst(request)) {
+      return problem(
+        403,
+        'analyst-role-required',
+        'Analyst role required',
+        'This endpoint requires the dispute analyst role.',
+      );
+    }
+
+    const taskId = disputeIdOf(request.url, ANALYST_DECISION_PATH);
+    const task = demoAnalystTasks.find((candidate) => candidate.taskId === taskId);
+
+    if (!task) {
+      return problem(404, 'task-not-found', 'Task not found', 'The task does not exist.');
+    }
+
+    if (task.decision) {
+      return problem(
+        409,
+        'task-already-completed',
+        'Task already completed',
+        'Another analyst completed this task.',
+      );
+    }
+
+    const body = (await request.json()) as { decision?: unknown; rationale?: unknown };
+    const requestedDecision = parseDecision(body?.decision);
+
+    if (!requestedDecision) {
+      return problem(
+        422,
+        'invalid-decision',
+        'Invalid decision',
+        'The decision must be DUPLICATE_SUPPORTED or NOT_SUPPORTED.',
+      );
+    }
+
+    if (typeof body.rationale !== 'string' || body.rationale.trim().length === 0) {
+      return problem(
+        422,
+        'rationale-required',
+        'Rationale required',
+        'An analyst decision requires a rationale.',
+      );
+    }
+
+    const newStatus =
+      requestedDecision === 'DUPLICATE_SUPPORTED'
+        ? ('RESOLVED_DUPLICATE_SUPPORTED' as const)
+        : ('RESOLVED_NOT_SUPPORTED' as const);
+
+    const decision = {
+      decisionType: requestedDecision,
+      decisionSource: 'ANALYST' as const,
+      rationale: body.rationale.trim(),
+      decidedBy: DEMO_ANALYST_ID,
+      decidedAt: MOCK_NOW,
+    };
+
+    const dispute = demoDisputes.find((candidate) => candidate.disputeId === task.disputeId);
+    if (!dispute) {
+      return problem(404, 'case-not-found', 'Case not found', 'The case does not exist.');
+    }
+
+    dispute.status = newStatus;
+    dispute.decision = decision;
+    dispute.updatedAt = MOCK_NOW;
+    dispute.resolvedAt = MOCK_NOW;
+
+    task.status = newStatus;
+    task.decision = decision;
+
+    const events: TimelineEvent[] = [
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000071',
+        eventType: 'REVIEW_COMPLETED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: 'AWAITING_ANALYST',
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-71',
+        details: 'The analyst completed the review.',
+        occurredAt: MOCK_NOW,
+      },
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000072',
+        eventType: 'STATE_CHANGED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: newStatus,
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-72',
+        details: null,
+        occurredAt: MOCK_NOW,
+      },
+      {
+        eventId: 'c3000000-0000-4000-8000-000000000073',
+        eventType: 'DECIDED',
+        oldStatus: 'AWAITING_ANALYST',
+        newStatus: newStatus,
+        actorId: DEMO_ANALYST_ID,
+        correlationId: 'corr-73',
+        details: `Decision: ${requestedDecision === 'DUPLICATE_SUPPORTED' ? 'the charge was a duplicate.' : 'the charge was not a duplicate.'}`,
+        occurredAt: MOCK_NOW,
+      },
+    ];
+
+    demoTimeline[task.disputeId] = [...(demoTimeline[task.disputeId] ?? []), ...events];
+    task.timeline = [...task.timeline, ...events];
 
     return HttpResponse.json(dispute);
   }),

@@ -20,6 +20,6 @@ export const baseApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Dispute', 'Transaction'],
+  tagTypes: ['Dispute', 'Transaction', 'AnalystTask'],
   endpoints: () => ({}),
 });

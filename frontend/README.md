@@ -104,8 +104,9 @@ frontend/
       dispute.ts             #   Dispute, DisputeStatus, TimelineEvent, ProblemDetails…
       transaction.ts         #   Transaction, CreateDisputeRequest
       api.ts                 #   PageResponse (backend page shape), ApiProblem
+      analyst.ts             #   AnalystTask, AnalystTaskPage, MatchAssessment, queues…
     config/
-      demoUsers.ts           #   Synthetic demo users + Basic auth header
+      demoUsers.ts           #   Synthetic demo users + Basic auth headers
       theme.ts               #   Theme storage, OS setting, applyTheme
     utils/
       format.ts              #   Amount, date and date-time formatting
@@ -123,20 +124,28 @@ frontend/
       MyDisputesPage.tsx     #   Customer tracking list
       DisputeDetailPage.tsx  #   Case status, decision, facts, timeline (refreshes while open)
       SubmitDisputePage.tsx  #   Report a possible duplicate charge
+      AnalystQueuePage.tsx   #   Analyst work queue (pending / due soon)
+      AnalystReviewPage.tsx  #   Task evidence, decision form, history
     components/
       ui/                    # Generic primitives (no domain knowledge)
         Badge.tsx  Timeline.tsx  Lifecycle.tsx  Facts.tsx  StateBlock.tsx  Spinner.tsx
         ConfirmDialog.tsx    # Modal confirmation (native <dialog>)
+        Button.tsx  Field.tsx
       disputes/              # Dispute domain components
         StatusBadge.tsx  DisputeTimeline.tsx  DisputeLifecycle.tsx
-        DisputeDecisionSummary.tsx  DisputeFacts.tsx  meta.ts  lifecycle.ts
+        DisputeDecisionSummary.tsx  DisputeFacts.tsx  TransactionFacts.tsx
+        meta.ts  lifecycle.ts
       session/
         DemoUserPicker.tsx   # Header menu to switch the demo user
       theme/
         ThemePicker.tsx      # Header Theme menu (Light / Dark / System)
         ThemeSync.tsx        # Applies and saves the theme; follows the OS setting
+      analyst/               # Analyst domain components
+        AnalystQueueTabs.tsx  AnalystQueueTable.tsx  AnalystEvidence.tsx
+        AnalystDecisionForm.tsx  AnalystDecisionPanel.tsx  AnalystDecisionOutcome.tsx
+        meta.ts  errors.ts
     mocks/                   # MSW mock API
-      fixtures.ts            #   Deterministic transactions, cases and timeline events
+      fixtures.ts            #   Deterministic transactions, cases, tasks and timeline events
       handlers.ts            #   Route handlers + exported path predicates
       browser.ts             #   Browser worker (dev)
       server.ts              #   Node server (tests)
@@ -149,6 +158,7 @@ frontend/
         disputesApi.ts       #   Dispute endpoints (list, detail, timeline)
         disputeSubmissionApi.ts #  POST /disputes (submit a dispute)
         transactionsApi.ts   #   Customer transactions (list, detail)
+        analystApi.ts        #   Analyst endpoints (queue, task, decision)
       slices/ui/uiSlice.ts   #   UI state: sidebar, toasts and theme
       slices/session/sessionSlice.ts # Current demo user
       slices/session/switchDemoUserAndReset.ts # User switch with soft reset
@@ -167,7 +177,7 @@ flowchart TD
   provider --> themesync["ThemeSync<br/>applies data-theme"]
   provider --> routerp["RouterProvider (router)"]
   routerp --> layout["RootLayout<br/>header (Demo user · Theme) · sidebar · Toaster"]
-  layout --> pages["Pages (lazy-loaded)<br/>Home · MyDisputes · DisputeDetail · SubmitDispute"]
+  layout --> pages["Pages (lazy-loaded)<br/>Home · MyDisputes · DisputeDetail · SubmitDispute<br/>AnalystQueue · AnalystReview"]
   layout -. errors .-> boundary["RouteErrorBoundary"]
   pages -- "useAppSelector / useAppDispatch" --> slices["Slices<br/>client / UI state"]
   pages -- "generated query hooks" --> api["RTK Query baseApi<br/>server data cache"]
@@ -187,7 +197,7 @@ flowchart TD
 
 The store keeps two kinds of data apart:
 
-- **Server data** (disputes, users…) lives in the **RTK Query** cache. `baseApi.ts` is the single API; each feature adds its endpoints with `baseApi.injectEndpoints(...)` and uses the hooks it generates (for example `useGetDisputesQuery`).
+- **Server data** (disputes, users…) lives in the **RTK Query** cache. `baseApi.ts` is the single API; each feature adds its endpoints with `baseApi.injectEndpoints(...)` and uses the hooks it generates (for example `useGetDisputesQuery`, `useGetAnalystTasksQuery`).
 - **Client state** lives in **slices**, registered in `combineSlices(...)` in `store.ts`:
   - `uiSlice`: sidebar, toasts and theme (`themePreference`, `systemPrefersDark`)
   - `sessionSlice`: the current demo user
@@ -208,6 +218,16 @@ The backend authenticates synthetic users with **HTTP Basic** and takes the cust
   - the theme is kept: it is a device setting, not part of a user's session
 - **New slices holding session data must reset themselves on `switchDemoUser`** (with `extraReducers`, as `uiSlice` does), so nothing from one user is left for the next.
 - The mock API reads the same header to scope its data (`mockCustomerId`).
+
+### Analyst workspace
+
+The analyst screens live under `/analyst` and are **not** linked from the sidebar yet: the demo identity is a stub, so a role switcher would pretend to be something the backend does not enforce.
+
+- `GET /api/v1/analyst/tasks` — the work queue. `?queue=PENDING` or `?queue=DUE_SOON`; the response carries the size of both queues, so the tab counters need no second request.
+- `GET /api/v1/analyst/tasks/{taskId}` — the task with its evidence, the match assessment and a short history. One request, no waterfall.
+- `POST /api/v1/analyst/tasks/{taskId}/decision` — `{ decision, rationale }`. The decision is mandatory and the rationale is validated in the browser and again on the server.
+
+The analyst identity travels in the `X-Demo-Analyst-Id` header. It is attached **per endpoint** (`src/store/api/analystApi.ts`), because the customer endpoints must not claim an analyst identity. The decision invalidates the RTK Query tags `AnalystTask` (the queue) and `Dispute` (the customer views), so the customer sees the outcome without a reload.
 
 ### Styling
 
@@ -240,9 +260,9 @@ The backend authenticates synthetic users with **HTTP Basic** and takes the cust
 
 The frontend is built **contract-first** against MSW, so screens work before the backend endpoints are ready.
 
-- `src/mocks/handlers.ts` holds the route handlers. Paths are **regular expressions** (`DISPUTES_PATH`, `DISPUTE_PATH`, `TIMELINE_PATH`, `TRANSACTIONS_PATH`, `TRANSACTION_PATH`) so a handler matches whatever origin the API base URL points at.
+- `src/mocks/handlers.ts` holds the route handlers. Paths are **regular expressions** (`DISPUTES_PATH`, `DISPUTE_PATH`, `TIMELINE_PATH`, `TRANSACTIONS_PATH`, `TRANSACTION_PATH`, `ANALYST_TASKS_PATH`, `ANALYST_TASK_PATH`, `ANALYST_DECISION_PATH`) so a handler matches whatever origin the API base URL points at.
 - `POST /disputes` applies the same rules as the backend `DisputeService.submit` (ownership, POSTED only, 60-day window measured from `MOCK_NOW`, two different charges, no open dispute on either). Created cases live in memory; `resetMockDb()` clears them after each test.
-- `src/mocks/fixtures.ts` holds the demo cases. Fixtures are deterministic: fixed UUIDs and ISO timestamps, no `new Date()` and no `Math.random()`.
+- `src/mocks/fixtures.ts` holds the demo cases and analyst tasks. Fixtures are deterministic: fixed UUIDs and ISO timestamps, no `new Date()` and no `Math.random()`. The mock clock is the fixed `MOCK_NOW`, so the work queue is reproducible.
 - `src/mocks/browser.ts` is the dev worker. `main.tsx` starts it before the first render when `VITE_USE_MOCKS=true`, and only then.
 - `src/mocks/server.ts` is the Node server used by the tests. Its lifecycle lives in `src/setupTests.ts`: `server.listen({ onUnhandledFrame: 'error' })` before the tests, `server.resetHandlers()` and `resetMockDb()` after each test, `server.close()` at the end.
 - A test overrides a route with `server.use(http.get(DISPUTES_PATH, ...))` using the exported predicates.
@@ -255,7 +275,7 @@ The frontend is built **contract-first** against MSW, so screens work before the
 - **No `renderX` props.** Compose instead of passing callbacks that return elements.
 - **React 19.** No `forwardRef`; `ref` is a normal prop.
 - **Accessible semantics.** Real `<button>`, `<table>`, `<dl>`, `<ol>` and `<ul>` elements with headings and `aria-label`s, so the tests can query by role.
-- **Layers.** `components/ui/` holds generic primitives with no domain knowledge; `components/disputes/` holds the dispute-specific components built on top of them.
+- **Layers.** `components/ui/` holds generic primitives with no domain knowledge; `components/disputes/` and `components/analyst/` hold the domain components built on top of them.
 
 ### Testing
 

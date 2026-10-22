@@ -46,4 +46,23 @@ export const routes: RouteObject[] = [
       },
     ],
   },
+  {
+    path: paths.analyst,
+    element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import("@/pages/AnalystQueuePage")).default,
+        }),
+      },
+      {
+        path: "tasks/:taskId",
+        lazy: async () => ({
+          Component: (await import("@/pages/AnalystReviewPage")).default,
+        }),
+      },
+    ],
+  },
 ];

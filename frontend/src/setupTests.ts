@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { resetMockDb } from '@/mocks/handlers';
+import { resetDemoState } from '@/mocks/fixtures';
 import { server } from '@/mocks/server';
 import { createMatchMedia } from '@/test/matchMedia';
 
@@ -29,5 +30,6 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
   document.documentElement.style.colorScheme = '';
   window.matchMedia = createMatchMedia(false).matchMedia;
+  resetDemoState();
 });
 afterAll(() => server.close());

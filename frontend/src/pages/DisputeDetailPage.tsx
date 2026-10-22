@@ -129,7 +129,7 @@ export default function DisputeDetailPage() {
           <h2 id="case-decision-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Decision
           </h2>
-          <DisputeDecisionSummary dispute={dispute} />
+          <DisputeDecisionSummary decision={dispute.decision} />
         </section>
       </div>
 

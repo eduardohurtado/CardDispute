@@ -1,5 +1,10 @@
-import type { Dispute, DisputeListQuery, PagedResponse, TimelineEvent } from '@/types/dispute';
-import { baseApi } from './baseApi';
+import type {
+  Dispute,
+  DisputeListQuery,
+  PagedResponse,
+  TimelineEvent,
+} from "@/types/dispute";
+import { baseApi } from "./baseApi";
 
 /**
  * Read-only endpoints of the customer dispute tracking slice.
@@ -10,26 +15,36 @@ import { baseApi } from './baseApi';
 export const disputesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     /** List the cases of the signed-in customer, newest first. */
-    getDisputes: builder.query<PagedResponse<Dispute>, DisputeListQuery | void>({
-      query: (args) => ({
-        url: 'v1/disputes',
-        params: args ?? {},
-      }),
-      providesTags: ['Dispute'],
-    }),
+    getDisputes: builder.query<PagedResponse<Dispute>, DisputeListQuery | void>(
+      {
+        query: (args) => ({
+          url: "v1/disputes",
+          params: args ?? {},
+        }),
+        providesTags: ["Dispute"],
+      },
+    ),
 
     /** One case, with its status and decision. */
     getDispute: builder.query<Dispute, string>({
       query: (disputeId) => ({ url: `v1/disputes/${disputeId}` }),
-      providesTags: ['Dispute'],
+      providesTags: (_result, _error, disputeId) => [
+        { type: "Dispute", id: disputeId },
+      ],
     }),
 
     /** The business audit trail of a case. */
     getDisputeTimeline: builder.query<TimelineEvent[], string>({
       query: (disputeId) => ({ url: `v1/disputes/${disputeId}/timeline` }),
-      providesTags: ['Dispute'],
+      providesTags: (_result, _error, disputeId) => [
+        { type: "Dispute", id: disputeId },
+      ],
     }),
   }),
 });
 
-export const { useGetDisputesQuery, useGetDisputeQuery, useGetDisputeTimelineQuery } = disputesApi;
+export const {
+  useGetDisputesQuery,
+  useGetDisputeQuery,
+  useGetDisputeTimelineQuery,
+} = disputesApi;
