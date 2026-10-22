@@ -12,7 +12,7 @@ interface Options {
 
 /** Renders the full app (routes + a fresh Redux store) for integration tests. */
 export function renderWithProviders({ route = '/', preloadedState }: Options = {}) {
-  const store = makeStore(preloadedState);
+  const store = makeStore(preloadedState, { refetchOnFocus: false });
   const router = createMemoryRouter(routes, { initialEntries: [route] });
   const result = render(
     <Provider store={store}>

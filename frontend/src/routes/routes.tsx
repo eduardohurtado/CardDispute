@@ -1,8 +1,8 @@
-import type { RouteObject } from 'react-router';
-import { paths } from '@/routes/paths';
-import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
-import { RootLayout } from '@/layouts/RootLayout';
-import { NotFoundPage } from '@/pages/NotFoundPage';
+import type { RouteObject } from "react-router";
+import { paths } from "@/routes/paths";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { RootLayout } from "@/layouts/RootLayout";
+import { NotFoundPage } from "@/pages/NotFoundPage";
 
 export const routes: RouteObject[] = [
   {
@@ -13,9 +13,30 @@ export const routes: RouteObject[] = [
       {
         index: true,
         // Lazy-loaded so each page gets its own bundle chunk.
-        lazy: async () => ({ Component: (await import('@/pages/HomePage')).default }),
+        lazy: async () => ({
+          Component: (await import("@/pages/HomePage")).default,
+        }),
       },
-      { path: '*', element: <NotFoundPage /> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+  {
+    path: paths.disputes,
+    element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import("@/pages/MyDisputesPage")).default,
+        }),
+      },
+      {
+        path: ":id",
+        lazy: async () => ({
+          Component: (await import("@/pages/DisputeDetailPage")).default,
+        }),
+      },
     ],
   },
 ];

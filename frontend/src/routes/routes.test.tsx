@@ -8,6 +8,11 @@ describe('routes', () => {
     expect(await screen.findByRole('heading', { name: 'Card Dispute' })).toBeInTheDocument();
   });
 
+  it('renders the dispute list at /disputes', async () => {
+    renderWithProviders({ route: '/disputes' });
+    expect(await screen.findByRole('heading', { name: 'My Disputes' })).toBeInTheDocument();
+  });
+
   it('renders the 404 page for unknown URLs', () => {
     renderWithProviders({ route: '/does-not-exist' });
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
