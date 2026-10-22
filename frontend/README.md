@@ -19,7 +19,7 @@ Web client for the Card Dispute platform. It is a single-page app (SPA) built wi
 
 - **Node.js 22.13 or newer** (Node 24 LTS recommended). Vite, Vitest and jsdom need this version. Check with `node -v`.
 - **npm 10+** (comes with Node).
-- The backend is **not** required to run the app yet: the dispute endpoints are served by MSW mocks.
+- The backend is **optional**: with `VITE_USE_MOCKS=true` every endpoint is served by MSW mocks.
 
 ## Getting started
 
@@ -30,7 +30,9 @@ cp .env.example .env.local   # optional: set the backend URL
 npm run dev          # open http://localhost:3000
 ```
 
-With no `.env.local` the app talks to `/api` and finds nothing. To run against the bundled mock API, set `VITE_USE_MOCKS=true` in `.env.local` (or `frontend/.env`) — the MSW browser worker then serves the dispute endpoints.
+By default the app calls `/api`, and the dev server **proxies** those calls to the backend at `BACKEND_URL` (default `http://localhost:8080`). The backend has no CORS setup, so keep `VITE_API_URL` relative.
+
+To run without a backend, set `VITE_USE_MOCKS=true` in `.env.local` (or `frontend/.env`). The MSW browser worker then serves every endpoint.
 
 ### Environment variables
 
@@ -40,6 +42,8 @@ Vite only exposes variables that start with `VITE_`. Put local values in `.env.l
 | ----------------- | ------- | ---------------------------------------------------------------------- |
 | `VITE_API_URL`    | `/api`  | Base URL for all backend API calls. Endpoint paths add the `v1/` prefix. |
 | `VITE_USE_MOCKS`  | `false` | Set to `true` to serve the API from the MSW browser worker.            |
+| `VITE_DEMO_PASSWORD` | `demo` | Password of the synthetic demo users (see "Demo users" below).       |
+| `BACKEND_URL`     | `http://localhost:8080` | Target of the dev server `/api` proxy. Not exposed to the browser. |
 
 `.env.test` is committed: Vitest runs in `test` mode, and the absolute `VITE_API_URL` it sets is required because Node's `fetch` rejects relative URLs.
 
@@ -69,11 +73,14 @@ frontend/
     setupTests.ts            # Vitest setup: jest-dom + MSW server lifecycle
     types/                   # Domain types shared by the API layer and pages
       dispute.ts             #   Dispute, DisputeStatus, TimelineEvent, ProblemDetails…
+      transaction.ts         #   Transaction, CreateDisputeRequest
+      api.ts                 #   PageResponse (backend page shape), ApiProblem
     config/
-      demoSession.ts         #   Temporary demo identity header (stub until SSO)
+      demoUsers.ts           #   Synthetic demo users + Basic auth header
     utils/
       format.ts              #   Amount, date and date-time formatting
       apiError.ts            #   Problem Details → customer-facing message
+      submitErrors.ts        #   Submit form validation + error → form message mapping
     routes/                  # Routing
       paths.ts               #   URL constants
       routes.tsx             #   Route tree (RouteObject[])
@@ -82,15 +89,18 @@ frontend/
       RootLayout.tsx         # Shared shell: header, sidebar, <Outlet />, toasts
     pages/                   # One component per screen
       MyDisputesPage.tsx     #   Customer tracking list
-      DisputeDetailPage.tsx  #   Case status, decision, facts, timeline
+      DisputeDetailPage.tsx  #   Case status, decision, facts, timeline (refreshes while open)
+      SubmitDisputePage.tsx  #   Report a possible duplicate charge
     components/
       ui/                    # Generic primitives (no domain knowledge)
         Badge.tsx  Timeline.tsx  Lifecycle.tsx  Facts.tsx  StateBlock.tsx  Spinner.tsx
       disputes/              # Dispute domain components
         StatusBadge.tsx  DisputeTimeline.tsx  DisputeLifecycle.tsx
         DisputeDecisionSummary.tsx  DisputeFacts.tsx  meta.ts  lifecycle.ts
+      session/
+        DemoUserPicker.tsx   # Header menu to switch the demo user
     mocks/                   # MSW mock API
-      fixtures.ts            #   Deterministic demo cases and timeline events
+      fixtures.ts            #   Deterministic transactions, cases and timeline events
       handlers.ts            #   Route handlers + exported path predicates
       browser.ts             #   Browser worker (dev)
       server.ts              #   Node server (tests)
@@ -101,7 +111,10 @@ frontend/
       api/
         baseApi.ts           #   RTK Query API (base URL from VITE_API_URL)
         disputesApi.ts       #   Dispute endpoints (list, detail, timeline)
+        disputeSubmissionApi.ts #  POST /disputes (submit a dispute)
+        transactionsApi.ts   #   Customer transactions (list, detail)
       slices/ui/uiSlice.ts   #   UI state: sidebar and toast notifications
+      slices/session/sessionSlice.ts # Current demo user
     test/
       renderWithProviders.tsx # Renders the app with a fresh store + memory router
 ```
@@ -115,7 +128,7 @@ flowchart TD
   main["main.tsx"] --> provider["Redux Provider (store)"]
   provider --> routerp["RouterProvider (router)"]
   routerp --> layout["RootLayout<br/>header · sidebar · Toaster"]
-  layout --> pages["Pages (lazy-loaded)<br/>MyDisputes · DisputeDetail"]
+  layout --> pages["Pages (lazy-loaded)<br/>MyDisputes · DisputeDetail · SubmitDispute"]
   layout -. errors .-> boundary["RouteErrorBoundary"]
   pages -- "useAppSelector / useAppDispatch" --> slices["Slices<br/>client / UI state"]
   pages -- "generated query hooks" --> api["RTK Query baseApi<br/>server data cache"]
@@ -140,6 +153,15 @@ The store keeps two kinds of data apart:
 
 Always use the typed hooks `useAppSelector` / `useAppDispatch` from `@/store`, not the plain react-redux ones.
 
+### Demo users
+
+The backend authenticates synthetic users with **HTTP Basic** and takes the customer from the signed-in user, never from the request body.
+
+- `src/config/demoUsers.ts` lists the users from the backend `application.yml` (`customer01`, `customer02`). The password comes from `VITE_DEMO_PASSWORD`.
+- `sessionSlice` holds the current user (default `customer01`). `baseApi` adds `Authorization: Basic …` to every request.
+- `DemoUserPicker` in the header switches user and clears the RTK Query cache, so one user's data is never shown to another.
+- The mock API reads the same header to scope its data (`mockCustomerId`).
+
 ### Styling
 
 - Styles are Tailwind utility classes written directly in `className`. `index.css` only imports Tailwind and sets base styles for `body`.
@@ -148,9 +170,10 @@ Always use the typed hooks `useAppSelector` / `useAppDispatch` from `@/store`, n
 
 ### Mock API
 
-The backend has no REST controllers yet, so the frontend is built **contract-first** against MSW.
+The frontend is built **contract-first** against MSW, so screens work before the backend endpoints are ready.
 
-- `src/mocks/handlers.ts` holds the route handlers. Paths are **regular expressions** (`DISPUTES_PATH`, `DISPUTE_PATH`, `TIMELINE_PATH`) so a handler matches whatever origin the API base URL points at.
+- `src/mocks/handlers.ts` holds the route handlers. Paths are **regular expressions** (`DISPUTES_PATH`, `DISPUTE_PATH`, `TIMELINE_PATH`, `TRANSACTIONS_PATH`, `TRANSACTION_PATH`) so a handler matches whatever origin the API base URL points at.
+- `POST /disputes` applies the same rules as the backend `DisputeService.submit` (ownership, POSTED only, 60-day window measured from `MOCK_NOW`, two different charges, no open dispute on either). Created cases live in memory; `resetMockDb()` clears them after each test.
 - `src/mocks/fixtures.ts` holds the demo cases. Fixtures are deterministic: fixed UUIDs and ISO timestamps, no `new Date()` and no `Math.random()`.
 - `src/mocks/browser.ts` is the dev worker. `main.tsx` starts it before the first render when `VITE_USE_MOCKS=true`, and only then.
 - `src/mocks/server.ts` is the Node server used by the tests. Its lifecycle lives in `src/setupTests.ts`: `server.listen({ onUnhandledRequest: 'error' })` before each test, `server.resetHandlers()` after each test, `server.close()` when the file ends.
@@ -187,5 +210,14 @@ The backend has no REST controllers yet, so the frontend is built **contract-fir
 | Slice | Routes | Status |
 | ----- | ------ | ------ |
 | Customer dispute tracking (Increment 1, POC-08) | `/disputes`, `/disputes/:id` | Done — mocked API, contract in `docs/api/disputes-contract.md` |
-| Customer dispute submission | `/disputes/new` | Not started (needs `POST /api/v1/disputes`) |
+| Customer dispute submission (Increment 1, POC-07) | `/disputes/new` | Done — `GET /transactions`, `POST /disputes`, demo user picker; mocked and wired to the backend contract |
 | Analyst workspace | `/analyst` | Not started |
+
+## Demo script (mock API)
+
+Run with `VITE_USE_MOCKS=true`, as **Demo Customer 01**:
+
+1. **Report a charge** → Transaction "Supermercado Éxito · COP 154,300" → Possible duplicate: the other Éxito charge (listed under "Same amount") → **Submit dispute**. A toast confirms and the new case opens.
+2. Submit the same pair again → "There is already an open dispute…" (`409`).
+3. Choose "Librería Nacional" (posted in July) → "…within 60 days of posting" (`422`).
+4. Switch the **Demo user** to Demo Customer 02 → the data changes; they have a single charge, so nothing can be disputed.

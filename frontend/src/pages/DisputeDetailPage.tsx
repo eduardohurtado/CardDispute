@@ -9,15 +9,32 @@ import { StatusBadge } from '@/components/disputes/StatusBadge';
 import { Spinner } from '@/components/ui/Spinner';
 import { StateBlock } from '@/components/ui/StateBlock';
 import { paths } from '@/routes/paths';
-import { useAppDispatch } from '@/store';
-import { useGetDisputeQuery, useGetDisputeTimelineQuery } from '@/store/api/disputesApi';
+import { useAppDispatch, useAppSelector } from '@/store';
+import {
+  disputesApi,
+  useGetDisputeQuery,
+  useGetDisputeTimelineQuery,
+} from '@/store/api/disputesApi';
 import { showToast } from '@/store/slices/ui/uiSlice';
+import type { DisputeStatus } from '@/types/dispute';
 import { describeApiError, isNotFound } from '@/utils/apiError';
+
+/** While a case is in one of these statuses it can still move on its own, so the page refreshes. */
+const LIVE_STATUSES: readonly DisputeStatus[] = ['SUBMITTED', 'IN_REVIEW', 'AWAITING_ANALYST'];
+const REFRESH_INTERVAL_MS = 5000;
 
 export default function DisputeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const disputeId = id ?? '';
   const dispatch = useAppDispatch();
+
+  // Poll only while the last known status can still change (FE-1, Increment 2).
+  const cachedStatus = useAppSelector(
+    (state) => disputesApi.endpoints.getDispute.select(disputeId)(state).data?.status,
+  );
+  const pollingInterval =
+    cachedStatus && LIVE_STATUSES.includes(cachedStatus) ? REFRESH_INTERVAL_MS : 0;
+  const polling = { pollingInterval, skipPollingIfUnfocused: true };
 
   const {
     data: dispute,
@@ -25,9 +42,10 @@ export default function DisputeDetailPage() {
     isError,
     error,
     refetch,
-  } = useGetDisputeQuery(disputeId, { skip: !id });
+  } = useGetDisputeQuery(disputeId, { skip: !id, ...polling });
   const { data: events, isLoading: isTimelineLoading } = useGetDisputeTimelineQuery(disputeId, {
     skip: !id,
+    ...polling,
   });
 
   useEffect(() => {

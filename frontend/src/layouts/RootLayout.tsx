@@ -1,4 +1,5 @@
 import { NavLink, Outlet, ScrollRestoration, useNavigation } from 'react-router';
+import { DemoUserPicker } from '@/components/session/DemoUserPicker';
 import { Toaster } from '@/components/Toaster';
 import { paths } from '@/routes/paths';
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -27,6 +28,7 @@ export function RootLayout() {
           ☰
         </button>
         <span className="font-semibold">Card Dispute</span>
+        <DemoUserPicker />
       </header>
       {isNavigating && <div className="h-0.5 bg-blue-600" role="progressbar" aria-label="Loading page" />}
       <div className="flex">
@@ -37,6 +39,9 @@ export function RootLayout() {
             </NavLink>
             <NavLink to={paths.disputes} end className={navLinkClass}>
               My Disputes
+            </NavLink>
+            <NavLink to={paths.newDispute} end className={navLinkClass}>
+              Report a charge
             </NavLink>
           </nav>
         )}

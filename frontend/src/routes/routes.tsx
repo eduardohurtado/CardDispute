@@ -32,6 +32,13 @@ export const routes: RouteObject[] = [
         }),
       },
       {
+        // Static segment, so it wins over ":id".
+        path: "new",
+        lazy: async () => ({
+          Component: (await import("@/pages/SubmitDisputePage")).default,
+        }),
+      },
+      {
         path: ":id",
         lazy: async () => ({
           Component: (await import("@/pages/DisputeDetailPage")).default,

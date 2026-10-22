@@ -13,6 +13,14 @@ describe('routes', () => {
     expect(await screen.findByRole('heading', { name: 'My Disputes' })).toBeInTheDocument();
   });
 
+  it('renders the submit dispute page at /disputes/new', async () => {
+    renderWithProviders({ route: '/disputes/new' });
+    expect(
+      await screen.findByRole('heading', { name: 'Report a possible duplicate card charge' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Report a charge' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('renders the 404 page for unknown URLs', () => {
     renderWithProviders({ route: '/does-not-exist' });
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
