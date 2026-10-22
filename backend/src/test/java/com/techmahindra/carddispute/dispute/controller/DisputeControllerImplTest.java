@@ -2,14 +2,16 @@ package com.techmahindra.carddispute.dispute.controller;
 
 import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
 import com.techmahindra.carddispute.common.exception.ConflictException;
-import com.techmahindra.carddispute.common.security.AuthenticatedUser;
-import com.techmahindra.carddispute.config.SecurityConfig;
+import com.techmahindra.carddispute.security.AuthenticatedUser;
+import com.techmahindra.carddispute.security.config.SecurityConfig;
+import com.techmahindra.carddispute.dispute.controller.impl.DisputeControllerImpl;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.entity.ReasonCode;
 import com.techmahindra.carddispute.dispute.service.DisputeService;
 import com.techmahindra.carddispute.transaction.dto.TransactionResponse;
 import com.techmahindra.carddispute.transaction.entity.TransactionStatus;
+import com.techmahindra.carddispute.workflow.service.WorkflowService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -32,10 +34,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.eq;
 
-@WebMvcTest(DisputeController.class)
+@WebMvcTest(DisputeControllerImpl.class)
 @Import(SecurityConfig.class)
-class DisputeControllerTest {
+class DisputeControllerImplTest {
 
     private static final String TRANSACTION_ID = "aaaaaaaa-0000-0000-0000-000000000001";
     private static final String CANDIDATE_ID = "aaaaaaaa-0000-0000-0000-000000000002";
@@ -50,6 +56,9 @@ class DisputeControllerTest {
     @MockitoBean
     private DisputeService disputeService;
 
+    @MockitoBean
+    private WorkflowService workflowService;
+
     @Test
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/disputes"))
@@ -61,7 +70,11 @@ class DisputeControllerTest {
     @Test
     void customerSubmitsDispute() throws Exception {
         UUID disputeId = UUID.randomUUID();
+        String processInstanceId = "camunda-process-123";
+
         when(disputeService.submit(any(AuthenticatedUser.class), any(), anyString())).thenReturn(response(disputeId));
+        when(workflowService.startDisputeProcess(eq(disputeId),anyString())).thenReturn(processInstanceId);
+        when(disputeService.get(any(AuthenticatedUser.class),eq(disputeId))).thenReturn(response(disputeId));
 
         mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
@@ -71,6 +84,10 @@ class DisputeControllerTest {
                 .andExpect(jsonPath("$.disputeId").value(disputeId.toString()))
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.transaction.merchantName").value("CAFE AROMA BOGOTA 001"));
+
+        verify(workflowService, times(1)).startDisputeProcess(eq(disputeId),anyString());
+        verify(disputeService).get(any(AuthenticatedUser.class),eq(disputeId));
+        verify(disputeService, times(1)).associateWorkflowInstance(eq(disputeId),eq(processInstanceId));
     }
 
     @Test
@@ -111,6 +128,9 @@ class DisputeControllerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.errorCode").value("TRANSACTION_NOT_POSTED"));
+
+        verify(workflowService, never())
+                .startDisputeProcess(any(), anyString());
     }
 
     @Test
@@ -122,6 +142,9 @@ class DisputeControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("OPEN_DISPUTE_EXISTS"));
+
+        verify(workflowService, never())
+                .startDisputeProcess(any(), anyString());
     }
 
     @Test

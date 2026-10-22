@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261022180435-1
+      author: juliann1285
+      comment: Seed synthetic customer and analyst accounts
+      changes:
+        - sqlFile:
+            path: ../sql/005-App-user-seed.sql
+            relativeToChangelogFile: true
+            splitStatements: false

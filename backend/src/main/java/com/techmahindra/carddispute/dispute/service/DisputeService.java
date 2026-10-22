@@ -3,7 +3,7 @@ package com.techmahindra.carddispute.dispute.service;
 import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
 import com.techmahindra.carddispute.common.exception.ConflictException;
 import com.techmahindra.carddispute.common.exception.ResourceNotFoundException;
-import com.techmahindra.carddispute.common.security.AuthenticatedUser;
+import com.techmahindra.carddispute.security.AuthenticatedUser;
 import com.techmahindra.carddispute.common.web.PageResponse;
 import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
 import com.techmahindra.carddispute.dispute.dto.DecisionResponse;
@@ -107,13 +107,39 @@ public class DisputeService {
                 transactions.get(dispute.getCandidateTransactionId()));
     }
 
-    public void markInReview(UUID disputeId){
 
+    @Transactional("cardDisputeTransactionManager")
+    public void associateWorkflowInstance(
+            UUID disputeId,
+            String processInstanceId) {
+
+        if (disputeId == null) {
+            throw new IllegalArgumentException(
+                    "disputeId must not be null");
+        }
+
+        if (processInstanceId == null
+                || processInstanceId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "processInstanceId must not be blank");
+        }
+
+        DisputeCase dispute = disputeRepository.findById(disputeId)
+                .orElseThrow(() -> disputeNotFound(disputeId));
+
+        if (dispute.getWorkflowInstanceId() != null) {
+            throw new ConflictException(
+                    "WORKFLOW_ALREADY_ASSOCIATED",
+                    "Dispute " + disputeId
+                            + " already has a workflow instance"
+            );
+        }
+
+        dispute.setWorkflowInstanceId(processInstanceId);
+
+        disputeRepository.saveAndFlush(dispute);
     }
 
-    public void resolveAutomatically(UUID disputeId, String outcome, String rationale) {
-
-    }
 
     /** Customers only see their own cases (404 otherwise); analysts see every case. */
     private DisputeCase findAuthorized(AuthenticatedUser user, UUID disputeId) {

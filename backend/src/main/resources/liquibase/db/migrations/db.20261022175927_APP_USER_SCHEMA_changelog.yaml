@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261022175927-1
+      author: juliann1285
+      comment: Create application user table
+      changes:
+        - sqlFile:
+            path: ../sql/004-App-user-schema.sql
+            relativeToChangelogFile: true
+            splitStatements: true

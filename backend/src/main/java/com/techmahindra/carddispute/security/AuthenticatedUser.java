@@ -1,4 +1,4 @@
-package com.techmahindra.carddispute.common.security;
+package com.techmahindra.carddispute.security;
 
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.GrantedAuthority;

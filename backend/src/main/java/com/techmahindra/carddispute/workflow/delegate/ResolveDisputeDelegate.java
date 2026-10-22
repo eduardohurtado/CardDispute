@@ -1,49 +1,48 @@
 
 package com.techmahindra.carddispute.workflow.delegate;
 
-import java.util.UUID;
-
+import com.techmahindra.carddispute.dispute.service.DisputeLifecycleService;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.stereotype.Component;
 
-import com.techmahindra.carddispute.dispute.service.DisputeService;
+import java.util.UUID;
 
 @Component("resolveDisputeDelegate")
 public class ResolveDisputeDelegate implements JavaDelegate {
 
-    private final DisputeService disputeService;
+    private final DisputeLifecycleService lifecycleService;
 
-    public ResolveDisputeDelegate(DisputeService disputeService) {
-        this.disputeService = disputeService;
+    public ResolveDisputeDelegate(
+            DisputeLifecycleService lifecycleService) {
+        this.lifecycleService = lifecycleService;
     }
 
     @Override
     public void execute(DelegateExecution execution) {
 
-        UUID disputeId = UUID.fromString(execution.getBusinessKey());
+        UUID disputeId = UUID.fromString(
+                execution.getBusinessKey()
+        );
+
+        String correlationId = (String) execution.getVariable(
+                "correlationId"
+        );
 
         String outcome = (String) execution.getVariable(
-                "assessmentOutcome");
-
-        String rationale = (String) execution.getVariable(
-                "assessmentRationale");
+                "assessmentOutcome"
+        );
 
         if (!"SUPPORTED".equals(outcome)
                 && !"NOT_SUPPORTED".equals(outcome)) {
             throw new IllegalStateException(
-                    "Invalid automatic resolution outcome: " + outcome);
+                    "Invalid automatic resolution outcome: " + outcome
+            );
         }
 
-        if (rationale == null || rationale.isBlank()) {
-            throw new IllegalStateException(
-                    "Assessment rationale is required");
-        }
-
-        disputeService.resolveAutomatically(
+        lifecycleService.resolveAutomatically(
                 disputeId,
-                outcome,
-                rationale
+                correlationId
         );
     }
 }

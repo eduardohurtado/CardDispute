@@ -1,28 +1,37 @@
 
 package com.techmahindra.carddispute.workflow.delegate;
 
-import java.util.UUID;
-
+import com.techmahindra.carddispute.dispute.service.DisputeLifecycleService;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.stereotype.Component;
 
-import com.techmahindra.carddispute.dispute.service.DisputeService;
+import java.util.UUID;
 
 @Component("markDisputeInReviewDelegate")
 public class MarkDisputeInReviewDelegate implements JavaDelegate {
 
-    private final DisputeService disputeService;
+    private final DisputeLifecycleService lifecycleService;
 
-    public MarkDisputeInReviewDelegate(DisputeService disputeService) {
-        this.disputeService = disputeService;
+    public MarkDisputeInReviewDelegate(
+            DisputeLifecycleService lifecycleService) {
+        this.lifecycleService = lifecycleService;
     }
 
     @Override
     public void execute(DelegateExecution execution) {
 
-        UUID disputeId = UUID.fromString(execution.getBusinessKey());
+        UUID disputeId = UUID.fromString(
+                execution.getBusinessKey()
+        );
 
-        disputeService.markInReview(disputeId);
+        String correlationId = (String) execution.getVariable(
+                "correlationId"
+        );
+
+        lifecycleService.markInReview(
+                disputeId,
+                correlationId
+        );
     }
 }

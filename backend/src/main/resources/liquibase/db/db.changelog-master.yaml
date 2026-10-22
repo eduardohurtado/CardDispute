@@ -11,3 +11,11 @@ databaseChangeLog:
       file: ./migrations/db.20261021100500_DEMO_SEED_changelog.yaml
       relativeToChangelogFile: true
       context: demo-seed
+  - include:
+      file: ./migrations/db.20261022175927_APP_USER_SCHEMA_changelog.yaml
+      relativeToChangelogFile: true
+      context: db-init
+  - include:
+      file: ./migrations/db.20261022180435_APP_USER_SEED_changelog.yaml
+      relativeToChangelogFile: true
+      context: demo-seed

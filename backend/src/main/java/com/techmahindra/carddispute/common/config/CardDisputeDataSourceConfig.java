@@ -1,4 +1,4 @@
-package com.techmahindra.carddispute.config;
+package com.techmahindra.carddispute.common.config;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;

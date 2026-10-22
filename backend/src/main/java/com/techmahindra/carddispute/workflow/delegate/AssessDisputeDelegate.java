@@ -1,51 +1,49 @@
 
 package com.techmahindra.carddispute.workflow.delegate;
 
-import java.util.UUID;
-
+import com.techmahindra.carddispute.dispute.service.DisputeLifecycleService;
+import com.techmahindra.carddispute.transaction.service.AssessmentOutcome;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.stereotype.Component;
 
-import com.techmahindra.carddispute.transaction.dto.AssessmentResult;
-import com.techmahindra.carddispute.transaction.service.TransactionAssessmentService;
+import java.util.UUID;
 
 @Component("assessDisputeDelegate")
 public class AssessDisputeDelegate implements JavaDelegate {
 
-    private final TransactionAssessmentService assessmentService;
+    private final DisputeLifecycleService lifecycleService;
 
     public AssessDisputeDelegate(
-            TransactionAssessmentService assessmentService) {
-        this.assessmentService = assessmentService;
+            DisputeLifecycleService lifecycleService) {
+        this.lifecycleService = lifecycleService;
     }
 
     @Override
     public void execute(DelegateExecution execution) {
 
-        UUID disputeId = UUID.fromString(execution.getBusinessKey());
+        UUID disputeId = UUID.fromString(
+                execution.getBusinessKey()
+        );
 
-        AssessmentResult result =
-                assessmentService.assessDispute(disputeId);
+        String correlationId = (String) execution.getVariable(
+                "correlationId"
+        );
 
-        if (result == null
-                || result.getOutcome() == null
-                || result.getRationale() == null
-                || result.getRationale().isBlank()) {
+        AssessmentOutcome outcome = lifecycleService.assess(
+                disputeId,
+                correlationId
+        );
+
+        if (outcome == null) {
             throw new IllegalStateException(
-                    "Incomplete assessment for dispute " + disputeId);
+                    "Assessment outcome is null for dispute " + disputeId
+            );
         }
 
-        String outcome = result.getOutcome();
-
-        if (!"SUPPORTED".equals(outcome)
-                && !"NOT_SUPPORTED".equals(outcome)
-                && !"MANUAL_REVIEW".equals(outcome)) {
-            throw new IllegalStateException(
-                    "Unsupported assessment outcome: " + outcome);
-        }
-
-        execution.setVariable("assessmentOutcome", outcome);
-        execution.setVariable("assessmentRationale", result.getRationale());
+        execution.setVariable(
+                "assessmentOutcome",
+                outcome.name()
+        );
     }
 }
