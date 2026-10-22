@@ -95,6 +95,7 @@ frontend/
     components/
       ui/                    # Generic primitives (no domain knowledge)
         Badge.tsx  Timeline.tsx  Lifecycle.tsx  Facts.tsx  StateBlock.tsx  Spinner.tsx
+        ConfirmDialog.tsx    # Modal confirmation (native <dialog>)
       disputes/              # Dispute domain components
         StatusBadge.tsx  DisputeTimeline.tsx  DisputeLifecycle.tsx
         DisputeDecisionSummary.tsx  DisputeFacts.tsx  meta.ts  lifecycle.ts
@@ -119,6 +120,7 @@ frontend/
         transactionsApi.ts   #   Customer transactions (list, detail)
       slices/ui/uiSlice.ts   #   UI state: sidebar, toasts and theme
       slices/session/sessionSlice.ts # Current demo user
+      slices/session/switchDemoUserAndReset.ts # User switch with soft reset
     test/
       renderWithProviders.tsx # Renders the app with a fresh store + memory router
       matchMedia.ts          # Controllable matchMedia (OS dark mode) for tests
@@ -164,7 +166,11 @@ The backend authenticates synthetic users with **HTTP Basic** and takes the cust
 
 - `src/config/demoUsers.ts` lists the users from the backend `application.yml` (`customer01`, `customer02`). The password comes from `VITE_DEMO_PASSWORD`.
 - `sessionSlice` holds the current user (default `customer01`). `baseApi` adds `Authorization: Basic …` to every request.
-- `DemoUserPicker` in the header switches user and clears the RTK Query cache, so one user's data is never shown to another.
+- `DemoUserPicker` in the header asks for confirmation (`ConfirmDialog`) before switching. On confirm the app **soft-resets**:
+  - it moves to the home page (replacing the current history entry), so open pages and form entries are gone
+  - `switchDemoUserAndReset` clears the RTK Query cache (data, polling, in-flight requests), toasts and the sidebar state, then shows a single "Now using …" toast
+  - the theme is kept: it is a device setting, not part of a user's session
+- **New slices holding session data must reset themselves on `switchDemoUser`** (with `extraReducers`, as `uiSlice` does), so nothing from one user is left for the next.
 - The mock API reads the same header to scope its data (`mockCustomerId`).
 
 ### Styling

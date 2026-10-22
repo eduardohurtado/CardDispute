@@ -1,9 +1,11 @@
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit';
+import { findDemoUser } from '@/config/demoUsers';
 import {
   loadThemePreference,
   type ResolvedTheme,
   type ThemePreference,
 } from '@/config/theme';
+import { switchDemoUser } from '@/store/slices/session/sessionSlice';
 
 export type { ResolvedTheme, ThemePreference } from '@/config/theme';
 
@@ -59,6 +61,17 @@ export const uiSlice = createSlice({
     systemThemeChanged(state, action: PayloadAction<boolean>) {
       state.systemPrefersDark = action.payload;
     },
+  },
+  extraReducers: (builder) => {
+    // Soft reset when the demo user changes: nothing from the previous user's
+    // session stays. The theme is a device setting, so it is kept.
+    builder.addCase(switchDemoUser, (state, action) => {
+      if (!findDemoUser(action.payload)) {
+        return;
+      }
+      state.toasts = [];
+      state.isSidebarOpen = true;
+    });
   },
   selectors: {
     selectIsSidebarOpen: (state) => state.isSidebarOpen,
