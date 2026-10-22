@@ -27,8 +27,8 @@ export function DisputeDecisionSummary({ dispute }: { dispute: Dispute }) {
         <Fact label="Source">{decisionSourceLabel(decision.decisionSource)}</Fact>
       </Facts>
       <div>
-        <h3 className="text-sm font-medium text-gray-900">Rationale</h3>
-        <p className="mt-1 text-sm text-gray-600">{decision.rationale}</p>
+        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Rationale</h3>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{decision.rationale}</p>
       </div>
     </div>
   );

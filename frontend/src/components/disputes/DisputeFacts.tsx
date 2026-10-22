@@ -10,7 +10,7 @@ export function DisputeFacts({ dispute }: { dispute: Dispute }) {
   return (
     <div className="space-y-6">
       <section aria-labelledby="case-facts-heading">
-        <h2 id="case-facts-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="case-facts-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Case
         </h2>
         <Facts className="mt-3">
@@ -30,7 +30,7 @@ export function DisputeFacts({ dispute }: { dispute: Dispute }) {
       </section>
 
       <section aria-labelledby="transaction-facts-heading">
-        <h2 id="transaction-facts-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="transaction-facts-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Transaction
         </h2>
         <Facts className="mt-3">
@@ -40,7 +40,7 @@ export function DisputeFacts({ dispute }: { dispute: Dispute }) {
 
       {dispute.candidateTransaction ? (
         <section aria-labelledby="candidate-facts-heading">
-          <h2 id="candidate-facts-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="candidate-facts-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Suspected duplicate
           </h2>
           <Facts className="mt-3">

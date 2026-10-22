@@ -4,7 +4,24 @@
     <meta charset="utf-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      // Applies the saved theme before the first paint, so dark mode never
+      // flashes white. Same key and rules as src/config/theme.ts; keep in sync.
+      (function () {
+        var preference = 'system';
+        try {
+          var stored = localStorage.getItem('card-dispute.theme');
+          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+        } catch (e) {}
+        var dark =
+          preference === 'dark' ||
+          (preference === 'system' && !!window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+        var theme = dark ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
     <meta name="description" content="Card Dispute management portal" />
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />

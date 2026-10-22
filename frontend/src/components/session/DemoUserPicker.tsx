@@ -18,15 +18,15 @@ export function DemoUserPicker() {
   };
 
   return (
-    <div className="ml-auto flex items-center gap-2">
-      <label htmlFor="demo-user" className="text-sm text-gray-600">
+    <div className="flex items-center gap-2">
+      <label htmlFor="demo-user" className="text-sm text-gray-600 dark:text-gray-400">
         Demo user
       </label>
       <select
         id="demo-user"
         value={username}
         onChange={handleChange}
-        className="cursor-pointer rounded-md border border-gray-300 bg-white px-2 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        className="cursor-pointer rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
       >
         {DEMO_USERS.map((user) => (
           <option key={user.username} value={user.username}>

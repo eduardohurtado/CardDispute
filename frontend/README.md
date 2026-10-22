@@ -77,6 +77,7 @@ frontend/
       api.ts                 #   PageResponse (backend page shape), ApiProblem
     config/
       demoUsers.ts           #   Synthetic demo users + Basic auth header
+      theme.ts               #   Theme storage, OS setting, applyTheme
     utils/
       format.ts              #   Amount, date and date-time formatting
       apiError.ts            #   Problem Details → customer-facing message
@@ -99,6 +100,9 @@ frontend/
         DisputeDecisionSummary.tsx  DisputeFacts.tsx  meta.ts  lifecycle.ts
       session/
         DemoUserPicker.tsx   # Header menu to switch the demo user
+      theme/
+        ThemePicker.tsx      # Header Theme menu (Light / Dark / System)
+        ThemeSync.tsx        # Applies and saves the theme; follows the OS setting
     mocks/                   # MSW mock API
       fixtures.ts            #   Deterministic transactions, cases and timeline events
       handlers.ts            #   Route handlers + exported path predicates
@@ -113,10 +117,11 @@ frontend/
         disputesApi.ts       #   Dispute endpoints (list, detail, timeline)
         disputeSubmissionApi.ts #  POST /disputes (submit a dispute)
         transactionsApi.ts   #   Customer transactions (list, detail)
-      slices/ui/uiSlice.ts   #   UI state: sidebar and toast notifications
+      slices/ui/uiSlice.ts   #   UI state: sidebar, toasts and theme
       slices/session/sessionSlice.ts # Current demo user
     test/
       renderWithProviders.tsx # Renders the app with a fresh store + memory router
+      matchMedia.ts          # Controllable matchMedia (OS dark mode) for tests
 ```
 
 Imports can use the `@/` alias for `src/` (for example `import { store } from '@/store'`).
@@ -167,6 +172,27 @@ The backend authenticates synthetic users with **HTTP Basic** and takes the cust
 - Styles are Tailwind utility classes written directly in `className`. `index.css` only imports Tailwind and sets base styles for `body`.
 - Tailwind resets browser defaults, so headings, links and buttons need explicit classes.
 - Write full class names. Tailwind can't detect names built from strings at runtime (`bg-${color}-600`). Map values to full class names instead, as `Toaster.tsx` does for toast variants.
+- **Every color class needs its `dark:` partner** (see "Theme / dark mode" below).
+
+### Theme / dark mode
+
+- The **Theme** menu in the header offers Light, Dark and System. System (the default) follows the OS setting, also when it changes while the app is open.
+- State lives in `uiSlice`: `themePreference` (the choice) and `systemPrefersDark` (the OS setting). `selectResolvedTheme` gives the theme actually shown.
+- `ThemeSync` (mounted next to the router in `main.tsx` and in `renderWithProviders`) sets `data-theme` on `<html>`, saves the choice in `localStorage` (`card-dispute.theme`) and listens to the OS setting.
+- `index.css` ties Tailwind's `dark:` variant to `data-theme`. A small script in `index.html` applies the saved theme before the first paint, so there is no white flash. It repeats the rules in `src/config/theme.ts`; keep them in sync.
+- Add a `dark:` class next to each color, using this mapping:
+
+| Light | Dark partner |
+| --- | --- |
+| `bg-white` | `dark:bg-gray-900` |
+| `bg-gray-50` / `bg-gray-100` | `dark:bg-gray-800` |
+| `text-gray-900` / `-700` / `-600`, `-500` | `dark:text-gray-100` / `-300` / `-400` |
+| `border-gray-200` / `-300` | `dark:border-gray-700` |
+| Tints `bg-{c}-50`, `border-{c}-200`, `text-{c}-700/800/900` | `dark:bg-{c}-950/40`, `dark:border-{c}-800`, `dark:text-{c}-300` |
+| Links `text-blue-600/700` | `dark:text-blue-400` / `dark:text-blue-300` |
+| Solid buttons and toasts (`bg-*-600 text-white`) | none needed |
+
+  Tone colors (badges, timeline, lifecycle) already include their dark classes in `components/ui/tone.ts`.
 
 ### Mock API
 

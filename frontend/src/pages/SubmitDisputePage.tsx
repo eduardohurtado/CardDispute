@@ -22,7 +22,7 @@ const DESCRIPTION_MAX_LENGTH = 500;
 const TRANSACTION_PAGE_SIZE = 100;
 
 const fieldClass =
-  'w-full rounded-md border bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-gray-100';
+  'w-full rounded-md border bg-white dark:bg-gray-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800';
 
 function transactionLabel(transaction: Transaction): string {
   return [
@@ -112,13 +112,13 @@ export default function SubmitDisputePage() {
     <section className="max-w-2xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold">Report a possible duplicate card charge</h1>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Choose the charge you want to dispute and the charge that looks like a duplicate of it.
         </p>
       </header>
 
       {isLoading ? (
-        <div className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
           <Spinner label="Loading charges" />
           <span>Loading your charges…</span>
         </div>
@@ -226,12 +226,12 @@ export default function SubmitDisputePage() {
             />
           </Field>
 
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-300">
             Demonstration only; no actual refunds.
           </p>
 
           {alert ? (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div role="alert" className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-300">
               {alert}
             </div>
           ) : null}
@@ -240,11 +240,11 @@ export default function SubmitDisputePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-wait disabled:opacity-70"
+              className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400 disabled:cursor-wait disabled:opacity-70"
             >
               {isSubmitting ? 'Submitting…' : 'Submit dispute'}
             </button>
-            <Link to={paths.disputes} className="text-sm font-medium text-blue-700 underline">
+            <Link to={paths.disputes} className="text-sm font-medium text-blue-700 dark:text-blue-300 underline">
               Cancel
             </Link>
           </div>
@@ -261,7 +261,7 @@ function describedBy(id: string, error?: string, hasHint = false): string | unde
 }
 
 function borderClass(error?: string): string {
-  return error ? 'border-red-500' : 'border-gray-300';
+  return error ? 'border-red-500' : 'border-gray-300 dark:border-gray-700';
 }
 
 interface FieldProps {
@@ -276,16 +276,16 @@ interface FieldProps {
 function Field({ id, label, hint, error, children }: FieldProps) {
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+      <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {label}
       </label>
       {children}
       {error ? (
-        <p id={`${id}-error`} className="text-sm text-red-700">
+        <p id={`${id}-error`} className="text-sm text-red-700 dark:text-red-300">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="text-xs text-gray-500">
+        <p id={`${id}-hint`} className="text-xs text-gray-500 dark:text-gray-400">
           {hint}
         </p>
       ) : null}

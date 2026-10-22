@@ -7,10 +7,10 @@ export default function HomePage() {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">Card Dispute</h1>
-      <p className="text-gray-600">Welcome to the card dispute portal.</p>
+      <p className="text-gray-600 dark:text-gray-400">Welcome to the card dispute portal.</p>
       <button
         type="button"
-        className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-400"
         onClick={() => dispatch(showToast('Welcome to Card Dispute!', 'success'))}
       >
         Show notification

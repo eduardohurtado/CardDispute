@@ -71,7 +71,7 @@ export default function DisputeDetailPage() {
     return (
       <section className="space-y-4">
         <BackLink />
-        <div className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
           <Spinner label="Loading case" />
           <span>Loading the case…</span>
         </div>
@@ -107,26 +107,26 @@ export default function DisputeDetailPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">
           Case{' '}
-          <span className="font-mono text-base break-all align-middle text-gray-700">
+          <span className="font-mono text-base break-all align-middle text-gray-700 dark:text-gray-300">
             {dispute.disputeId}
           </span>
         </h1>
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge status={dispute.status} />
-          <p className="text-sm text-gray-600">{disputeStatusMeta[dispute.status].description}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{disputeStatusMeta[dispute.status].description}</p>
         </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="case-progress-heading" className="space-y-3">
-          <h2 id="case-progress-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="case-progress-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Progress
           </h2>
           <DisputeLifecycle dispute={dispute} />
         </section>
 
         <section aria-labelledby="case-decision-heading" className="space-y-3">
-          <h2 id="case-decision-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="case-decision-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Decision
           </h2>
           <DisputeDecisionSummary dispute={dispute} />
@@ -134,18 +134,18 @@ export default function DisputeDetailPage() {
       </div>
 
       <section aria-labelledby="case-details-heading" className="space-y-3">
-        <h2 id="case-details-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="case-details-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Case details
         </h2>
         <DisputeFacts dispute={dispute} />
       </section>
 
       <section aria-labelledby="case-history-heading" className="space-y-3">
-        <h2 id="case-history-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="case-history-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           History
         </h2>
         {isTimelineLoading ? (
-          <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
             <Spinner label="Loading history" />
             <span>Loading the history…</span>
           </div>
@@ -159,7 +159,7 @@ export default function DisputeDetailPage() {
 
 function BackLink() {
   return (
-    <Link to={paths.disputes} className="inline-block text-sm font-medium text-blue-700 underline">
+    <Link to={paths.disputes} className="inline-block text-sm font-medium text-blue-700 dark:text-blue-300 underline">
       Back to My Disputes
     </Link>
   );

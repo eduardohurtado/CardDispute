@@ -13,7 +13,7 @@ export function TimelineItem({ tone = 'neutral', className, children, ...rest }:
     <li className={clsx('group flex gap-3', className)} {...rest}>
       <span aria-hidden="true" className="flex flex-col items-center pt-1.5">
         <span className={clsx('size-2.5 shrink-0 rounded-full border-2', toneDotClasses[tone])} />
-        <span className="mt-1 w-px flex-1 bg-gray-200 group-last:hidden" />
+        <span className="mt-1 w-px flex-1 bg-gray-200 dark:bg-gray-700 group-last:hidden" />
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </li>

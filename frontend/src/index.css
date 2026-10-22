@@ -1,7 +1,10 @@
 @import 'tailwindcss';
 
+/* `dark:` follows the Theme menu (data-theme on <html>), not only the OS setting. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @layer base {
   body {
-    @apply bg-white font-sans text-gray-900 antialiased;
+    @apply bg-white font-sans text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
   }
 }
