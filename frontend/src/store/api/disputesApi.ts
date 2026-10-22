@@ -1,6 +1,7 @@
 import type {
   Dispute,
   DisputeListQuery,
+  DisputeListItem,
   PagedResponse,
   TimelineEvent,
 } from "@/types/dispute";
@@ -15,7 +16,7 @@ import { baseApi } from "./baseApi";
 export const disputesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     /** List the cases of the signed-in customer, newest first. */
-    getDisputes: builder.query<PagedResponse<Dispute>, DisputeListQuery | void>(
+    getDisputes: builder.query<PagedResponse<DisputeListItem>, DisputeListQuery | void>(
       {
         query: (args) => ({
           url: "v1/disputes",

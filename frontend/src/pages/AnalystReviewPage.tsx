@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/disputes/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { StateBlock } from '@/components/ui/StateBlock';
+import { isMockApi } from '@/config/apiMode';
 import { paths } from '@/routes/paths';
 import { useAppDispatch } from '@/store';
 import { useGetAnalystTaskQuery } from '@/store/api/analystApi';
@@ -24,7 +25,7 @@ export default function AnalystReviewPage() {
     isError,
     error,
     refetch,
-  } = useGetAnalystTaskQuery(taskId ?? '', { skip: !taskId });
+  } = useGetAnalystTaskQuery(taskId ?? '', { skip: !taskId || !isMockApi });
 
   useEffect(() => {
     if (isError) {
@@ -37,6 +38,18 @@ export default function AnalystReviewPage() {
       <section className="space-y-4">
         <BackLink />
         <StateBlock tone="danger" title="Task not found" description="No task was requested." />
+      </section>
+    );
+  }
+
+  if (!isMockApi) {
+    return (
+      <section className="space-y-4">
+        <BackLink />
+        <StateBlock
+          title="Analyst workspace not connected"
+          description="The backend does not expose the analyst endpoints yet. Run the app with VITE_USE_MOCKS=true to explore this screen."
+        />
       </section>
     );
   }

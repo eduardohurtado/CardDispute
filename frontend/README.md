@@ -21,47 +21,18 @@ Web client for the Card Dispute platform. It is a single-page app (SPA) built wi
 
 - **Node.js 22.13 or newer** (Node 24 LTS recommended). Vite, Vitest and jsdom need this version. Check with `node -v`.
 - **npm 10+** (comes with Node).
-- The backend is **optional**: with `VITE_USE_MOCKS=true` every endpoint is served by MSW mocks.
+- For the real backend: **Docker** (SQL Server + Camunda), **JDK 21** and the backend module (see [Running against the backend](#running-against-the-backend)). The app can also run alone against MSW mocks.
 
 ## Getting started
 
 ```bash
 cd frontend
-npm install                  # install dependencies
-cp .env.example .env.local   # then pick a mode below
+npm install
+cp .env.example .env.local   # VITE_API_URL=http://localhost:8080/api
 npm run dev                  # open http://localhost:3000
 ```
 
-### Your `.env.local`
-
-`.env.local` holds your local settings. Git ignores it, so every developer creates their own. Pick one of the two modes:
-
-**Mock mode: no backend needed.** Use this to work on screens or to demo the app. The MSW mock API answers every request with the data in `src/mocks/fixtures.ts`.
-
-```bash
-# frontend/.env.local
-VITE_API_URL=/api
-VITE_USE_MOCKS=true
-```
-
-**Backend mode: the real Spring Boot API.** Start the backend on port 8080 first. The dev server forwards `/api` calls to it, because the backend has no CORS setup.
-
-```bash
-# frontend/.env.local
-VITE_API_URL=/api
-VITE_USE_MOCKS=false
-BACKEND_URL=http://localhost:8080   # change if the backend runs elsewhere
-VITE_DEMO_PASSWORD=demo             # must match DEMO_USER_PASSWORD in the backend
-```
-
-Some screens don't work in backend mode yet; see [Known gaps with the real backend](#known-gaps-with-the-real-backend).
-
-**After editing `.env.local`, stop and restart `npm run dev`.** Vite reads env files only at startup.
-
-**Troubleshooting:**
-- **Every API call fails** (`502` in the browser's Network tab): the app is in backend mode and no backend is running. Start the backend, or switch to mock mode.
-- **Mock mode is set but calls still fail:** check the browser console for `[MSW] Mocking enabled`. If it isn't there, restart `npm run dev` and hard-reload the page (Cmd+Shift+R).
-- **`401` errors in backend mode:** `VITE_DEMO_PASSWORD` doesn't match the backend's demo user password.
+The app signs in against the backend, so nothing works until the backend is up. To run without a backend, set `VITE_USE_MOCKS=true` in `.env.local` — the MSW browser worker then serves the customer endpoints, the analyst endpoints and the demo accounts.
 
 ### Environment variables
 
@@ -106,6 +77,8 @@ frontend/
       api.ts                 #   PageResponse (backend page shape), ApiProblem
       analyst.ts             #   AnalystTask, AnalystTaskPage, MatchAssessment, queues…
     config/
+      apiMode.ts             #   isMockApi: read once from VITE_USE_MOCKS
+      demoSession.ts         #   Demo accounts, Basic header, mock identity headers
       demoUsers.ts           #   Synthetic demo users + Basic auth headers
       theme.ts               #   Theme storage, OS setting, applyTheme
     utils/
@@ -121,12 +94,15 @@ frontend/
     pages/                   # One component per screen
       HomePage.tsx           #   Landing page
       NotFoundPage.tsx       #   404 for unknown URLs
+      LoginPage.tsx          #   Demo username/password sign-in
+      ForbiddenPage.tsx      #   Wrong role for the requested area
       MyDisputesPage.tsx     #   Customer tracking list
       DisputeDetailPage.tsx  #   Case status, decision, facts, timeline (refreshes while open)
       SubmitDisputePage.tsx  #   Report a possible duplicate charge
       AnalystQueuePage.tsx   #   Analyst work queue (pending / due soon)
       AnalystReviewPage.tsx  #   Task evidence, decision form, history
     components/
+      auth/                  # RequireAuth, RequireRole route guards
       ui/                    # Generic primitives (no domain knowledge)
         Badge.tsx  Timeline.tsx  Lifecycle.tsx  Facts.tsx  StateBlock.tsx  Spinner.tsx
         ConfirmDialog.tsx    # Modal confirmation (native <dialog>)
@@ -154,11 +130,13 @@ frontend/
       hooks.ts               #   Typed hooks: useAppSelector, useAppDispatch
       index.ts               #   Public exports (import from "@/store")
       api/
-        baseApi.ts           #   RTK Query API (base URL from VITE_API_URL)
+        baseApi.ts           #   RTK Query API (URL, Basic auth, 401 → sign out)
+        authApi.ts           #   Credential check before opening the session
         disputesApi.ts       #   Dispute endpoints (list, detail, timeline)
         disputeSubmissionApi.ts #  POST /disputes (submit a dispute)
         transactionsApi.ts   #   Customer transactions (list, detail)
         analystApi.ts        #   Analyst endpoints (queue, task, decision)
+      slices/auth/authSlice.ts #   Signed-in user, role, access rules
       slices/ui/uiSlice.ts   #   UI state: sidebar, toasts and theme
       slices/session/sessionSlice.ts # Current demo user
       slices/session/switchDemoUserAndReset.ts # User switch with soft reset
@@ -186,9 +164,11 @@ flowchart TD
   mocks -.-> backend
 ```
 
-### Routing
+### Routing and access
 
-- Every route is a child of `RootLayout`, so the header and sidebar stay on every screen.
+- `/login` is public. Every other route sits behind `RequireAuth`, then inside `RootLayout`, so the header and sidebar stay on every screen.
+- `RequireRole` separates the two areas: `CUSTOMER` may open `/disputes` and `/disputes/:id`; `DISPUTE_ANALYST` may open `/analyst` and `/analyst/tasks/:taskId`. A signed-in user on the other area's URL gets `ForbiddenPage`; an anonymous visitor is sent to `/login` and returned to the requested page after signing in.
+- `RootLayout` renders only the navigation of the current role and a **Sign out** action that clears the session.
 - Pages are loaded only when visited (the route's `lazy` property), so each page is its own bundle chunk.
 - The `*` route shows `NotFoundPage`. If a route throws, `RouteErrorBoundary` is shown.
 - Links use the constants in `paths.ts` instead of hard-coded URLs.
@@ -219,15 +199,23 @@ The backend authenticates synthetic users with **HTTP Basic** and takes the cust
 - **New slices holding session data must reset themselves on `switchDemoUser`** (with `extraReducers`, as `uiSlice` does), so nothing from one user is left for the next.
 - The mock API reads the same header to scope its data (`mockCustomerId`).
 
+### Authentication
+
+- `LoginPage` validates the form, then `authApi.verifyCredentials` checks the account. In mock mode the check is local; against the backend it sends a Basic `GET /api/v1/disputes?size=1` probe and treats `401`/`403` as a wrong password.
+- On success the session (`username`, `password`, `displayName`, `role`, `customerId`) goes to the `auth` slice and to `sessionStorage`, and the user lands on their role's home.
+- `baseApi` attaches the Basic header to every request. A `401` dispatches `signedOut()`, so an expired/revoked session returns to `/login` instead of leaving an empty page.
+
 ### Analyst workspace
 
-The analyst screens live under `/analyst` and are **not** linked from the sidebar yet: the demo identity is a stub, so a role switcher would pretend to be something the backend does not enforce.
+The analyst area is real UI over **mock** endpoints: the backend still has no `/api/v1/analyst/*` routes. Against the backend those pages skip their queries and show a "not connected" state instead of failing.
+
+The analyst identity travels in the `X-Demo-Analyst-Id` header, attached **per endpoint** (`src/store/api/analystApi.ts`) and only in mock mode, because the customer endpoints must not claim an analyst identity.
 
 - `GET /api/v1/analyst/tasks` — the work queue. `?queue=PENDING` or `?queue=DUE_SOON`; the response carries the size of both queues, so the tab counters need no second request.
 - `GET /api/v1/analyst/tasks/{taskId}` — the task with its evidence, the match assessment and a short history. One request, no waterfall.
 - `POST /api/v1/analyst/tasks/{taskId}/decision` — `{ decision, rationale }`. The decision is mandatory and the rationale is validated in the browser and again on the server.
 
-The analyst identity travels in the `X-Demo-Analyst-Id` header. It is attached **per endpoint** (`src/store/api/analystApi.ts`), because the customer endpoints must not claim an analyst identity. The decision invalidates the RTK Query tags `AnalystTask` (the queue) and `Dispute` (the customer views), so the customer sees the outcome without a reload.
+The decision invalidates the RTK Query tags `AnalystTask` (the queue) and `Dispute` (the customer views), so the customer sees the outcome without a reload.
 
 ### Styling
 
@@ -280,7 +268,7 @@ The frontend is built **contract-first** against MSW, so screens work before the
 ### Testing
 
 - Test files sit next to the code they test (`*.test.ts` / `*.test.tsx`).
-- `renderWithProviders({ route, preloadedState })` renders the full app with a fresh store and an in-memory router, and returns `{ store, router, ... }`.
+- `renderWithProviders({ route, preloadedState, authenticated, role })` renders the full app with a fresh store and an in-memory router, and returns `{ store, router, ... }`. It starts signed in as `customer01`; pass `authenticated: false` for the login flow or `role: 'DISPUTE_ANALYST'` for the analyst area.
 - Slice logic can be tested without React by dispatching actions to `makeStore()`.
 - MSW answers every request in tests. An unhandled request fails the test (`onUnhandledFrame: 'error'`).
 - After each test, `setupTests.ts` also clears `localStorage`, the theme on `<html>` and the mock DB, and restores a light-OS `matchMedia`. Use `createMatchMedia(true)` from `src/test/matchMedia.ts` to simulate a dark OS.

@@ -25,6 +25,8 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   resetMockDb();
+  // A previous login test must not leak its demo session.
+  sessionStorage.clear();
   // Theme state lives on <html> and in storage, so reset it between tests.
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
