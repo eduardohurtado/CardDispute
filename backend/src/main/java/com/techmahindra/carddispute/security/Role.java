@@ -1,4 +1,4 @@
-package com.techmahindra.carddispute.common.security;
+package com.techmahindra.carddispute.security;
 
 public enum Role {
     CUSTOMER,

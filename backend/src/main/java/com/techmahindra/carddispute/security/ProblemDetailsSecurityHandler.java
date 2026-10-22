@@ -1,4 +1,4 @@
-package com.techmahindra.carddispute.common.security;
+package com.techmahindra.carddispute.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techmahindra.carddispute.common.web.CorrelationId;

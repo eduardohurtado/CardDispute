@@ -1,10 +1,8 @@
-package com.techmahindra.carddispute.config;
+package com.techmahindra.carddispute.security.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.techmahindra.carddispute.common.security.DemoUserDetailsService;
-import com.techmahindra.carddispute.common.security.DemoUsersProperties;
-import com.techmahindra.carddispute.common.security.ProblemDetailsSecurityHandler;
-import com.techmahindra.carddispute.common.security.Role;
+import com.techmahindra.carddispute.security.ProblemDetailsSecurityHandler;
+import com.techmahindra.carddispute.security.Role;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,7 +19,6 @@ import org.springframework.security.web.SecurityFilterChain;
  * Identity always comes from the principal, never from request bodies.
  */
 @Configuration
-@EnableConfigurationProperties(DemoUsersProperties.class)
 public class SecurityConfig {
 
     private static final String CUSTOMER = Role.CUSTOMER.name();
@@ -41,6 +38,14 @@ public class SecurityConfig {
                         .accessDeniedHandler(problemHandler))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/error", "/actuator/health").permitAll()
+                        // swagger-ui
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml"
+                        ).permitAll()
                         // Camunda webapp has its own login (camunda.bpm.admin-user); local only
                         .requestMatchers("/camunda/**").permitAll()
                         .requestMatchers("/engine-rest/**").hasRole(ANALYST)
@@ -55,11 +60,5 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean
-    public DemoUserDetailsService demoUserDetailsService(DemoUsersProperties properties,
-                                                         PasswordEncoder passwordEncoder) {
-        return new DemoUserDetailsService(properties, passwordEncoder);
     }
 }

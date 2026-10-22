@@ -12,14 +12,16 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@Getter
+@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @Table(name = "dispute_case")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DisputeCase {
 
     @Id
