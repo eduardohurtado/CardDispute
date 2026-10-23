@@ -1,5 +1,6 @@
 package com.techmahindra.carddispute.dispute.service;
 
+import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeAuditEvent;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,6 +30,13 @@ public class DisputeAuditService {
                        String actorId, String correlationId, String details, Instant occurredAt) {
         auditRepository.save(DisputeAuditEvent.of(disputeId, eventType, oldStatus, newStatus, actorId,
                 correlationId, truncate(details), occurredAt));
+    }
+
+    @Transactional(readOnly = true)
+    public List<TimelineEntryResponse> timeline(UUID disputeId) {
+        return auditRepository.findByDisputeIdOrderByOccurredAtAscAuditIdAsc(disputeId).stream()
+                .map(TimelineEntryResponse::from)
+                .toList();
     }
 
     private static String truncate(String details) {

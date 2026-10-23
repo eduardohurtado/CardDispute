@@ -7,6 +7,7 @@ import com.techmahindra.carddispute.dispute.controller.DisputeController;
 import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeSummaryResponse;
+import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.service.DisputeService;
 import com.techmahindra.carddispute.workflow.service.WorkflowService;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -74,5 +76,11 @@ public class DisputeControllerImpl implements DisputeController {
     @Override
     public DisputeResponse get(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID disputeId) {
         return disputeService.get(user, disputeId);
+    }
+
+    @Override
+    public List<TimelineEntryResponse> timeline(@AuthenticationPrincipal AuthenticatedUser user,
+                                                @PathVariable UUID disputeId) {
+        return disputeService.timeline(user, disputeId);
     }
 }

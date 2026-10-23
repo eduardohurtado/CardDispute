@@ -6,10 +6,12 @@ import com.techmahindra.carddispute.common.web.PageResponse;
 import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeSummaryResponse;
+import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Tag(
@@ -174,6 +177,50 @@ public interface DisputeController {
     )
     @GetMapping("/{disputeId}")
     DisputeResponse get(
+            @Parameter(hidden = true)
+            @AuthenticationPrincipal AuthenticatedUser user,
+
+            @Parameter(
+                    in = ParameterIn.PATH,
+                    description = "Unique dispute identifier.",
+                    required = true,
+                    example = "550e8400-e29b-41d4-a716-446655440000"
+            )
+            @PathVariable UUID disputeId
+    );
+
+    @Operation(
+            operationId = "getDisputeTimeline",
+            summary = "Get dispute timeline",
+            description = """
+                    Returns the business audit events of the dispute in
+                    chronological order: creation, workflow start, status
+                    changes, assessment and decision.
+
+                    This is the business audit trail, not the Camunda history.
+                    """
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Timeline retrieved.",
+            content = @Content(
+                    array = @ArraySchema(
+                            schema = @Schema(
+                                    implementation = TimelineEntryResponse.class
+                            )
+                    )
+            )
+    )
+    @ApiResponse(
+            responseCode = "401",
+            description = "Authentication required."
+    )
+    @ApiResponse(
+            responseCode = "404",
+            description = "Dispute not found or not accessible."
+    )
+    @GetMapping("/{disputeId}/timeline")
+    List<TimelineEntryResponse> timeline(
             @Parameter(hidden = true)
             @AuthenticationPrincipal AuthenticatedUser user,
 

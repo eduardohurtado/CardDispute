@@ -6,6 +6,7 @@ import com.techmahindra.carddispute.common.exception.ResourceNotFoundException;
 import com.techmahindra.carddispute.security.AuthenticatedUser;
 import com.techmahindra.carddispute.security.Role;
 import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
+import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeCase;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
@@ -28,6 +29,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -196,6 +198,40 @@ class DisputeServiceTest {
         when(disputeRepository.findByDisputeIdAndCustomerId(disputeId, CUSTOMER_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.get(CUSTOMER, disputeId)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void customerReadsTimelineOfOwnDispute() {
+        DisputeCase dispute = DisputeCase.submit(CUSTOMER_ID, UUID.randomUUID(), UUID.randomUUID(),
+                ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
+        when(disputeRepository.findByDisputeIdAndCustomerId(dispute.getDisputeId(), CUSTOMER_ID))
+                .thenReturn(Optional.of(dispute));
+        List<TimelineEntryResponse> timeline = List.of(new TimelineEntryResponse(AuditEventType.CREATED, null,
+                DisputeStatus.SUBMITTED, "customer01", "Dispute submitted by customer", NOW));
+        when(auditService.timeline(dispute.getDisputeId())).thenReturn(timeline);
+
+        assertThat(service.timeline(CUSTOMER, dispute.getDisputeId())).isEqualTo(timeline);
+    }
+
+    @Test
+    void customerCannotReadTimelineOfAnotherCustomersDispute() {
+        UUID disputeId = UUID.randomUUID();
+        when(disputeRepository.findByDisputeIdAndCustomerId(disputeId, CUSTOMER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.timeline(CUSTOMER, disputeId))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void analystReadsTimelineOfAnyDispute() {
+        DisputeCase dispute = DisputeCase.submit(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
+        when(disputeRepository.findById(dispute.getDisputeId())).thenReturn(Optional.of(dispute));
+        when(auditService.timeline(dispute.getDisputeId())).thenReturn(List.of());
+
+        assertThat(service.timeline(ANALYST, dispute.getDisputeId())).isEmpty();
+        verify(auditService).timeline(dispute.getDisputeId());
     }
 
     private CardTransaction owned(CardTransaction transaction) {

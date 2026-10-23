@@ -9,6 +9,7 @@ import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
 import com.techmahindra.carddispute.dispute.dto.DecisionResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeSummaryResponse;
+import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeCase;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
@@ -110,6 +111,13 @@ public class DisputeService {
                 List.of(dispute.getTransactionId(), dispute.getCandidateTransactionId()));
         return toResponse(dispute, transactions.get(dispute.getTransactionId()),
                 transactions.get(dispute.getCandidateTransactionId()));
+    }
+
+    /** Business audit timeline, with the same visibility rules as the dispute detail. */
+    @Transactional(readOnly = true)
+    public List<TimelineEntryResponse> timeline(AuthenticatedUser user, UUID disputeId) {
+        DisputeCase dispute = findAuthorized(user, disputeId);
+        return auditService.timeline(dispute.getDisputeId());
     }
 
 
