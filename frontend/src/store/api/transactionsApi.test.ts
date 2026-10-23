@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeStore } from '@/store';
-import { switchDemoUser } from '@/store/slices/session/sessionSlice';
+import { signedIn } from '@/store/slices/auth/authSlice';
+import { findDemoUser, DEMO_PASSWORD } from '@/config/demoUsers';
 import { transactionsApi } from './transactionsApi';
 
 describe('transactionsApi', () => {
@@ -19,7 +20,14 @@ describe('transactionsApi', () => {
 
   it('scopes the list to the demo user', async () => {
     const store = makeStore(undefined, { refetchOnFocus: false });
-    store.dispatch(switchDemoUser('customer02'));
+    const u = findDemoUser('customer02')!;
+    store.dispatch(signedIn({
+      username: u.username,
+      password: DEMO_PASSWORD,
+      displayName: u.displayName,
+      role: u.role,
+      customerId: u.mockCustomerId || undefined,
+    }));
 
     const result = await store.dispatch(transactionsApi.endpoints.getTransactions.initiate({}));
 

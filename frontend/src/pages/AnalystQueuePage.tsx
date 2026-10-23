@@ -81,14 +81,14 @@ export default function AnalystQueuePage() {
             Try again
           </button>
         </StateBlock>
-      ) : data?.content.length === 0 ? (
+      ) : data?.items.length === 0 ? (
         <StateBlock
           title="No tasks in this queue"
           description="Nothing needs your attention here right now."
         />
       ) : (
         <>
-          <AnalystQueueTable tasks={data?.content ?? []} />
+          <AnalystQueueTable tasks={data?.items ?? []} />
           {isFetching ? <p className="mt-2 text-xs text-gray-500">Updating…</p> : null}
         </>
       )}

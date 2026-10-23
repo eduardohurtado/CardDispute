@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { DemoRole } from '@/config/demoSession';
+import { DEFAULT_DEMO_USER, DEMO_PASSWORD } from '@/config/demoUsers';
 
 /** Key used to keep the demo session across reloads. */
 export const AUTH_STORAGE_KEY = 'card-dispute.auth';
@@ -21,7 +22,7 @@ export interface AuthSession {
 }
 
 export interface AuthState {
-  session: AuthSession | null;
+  session: AuthSession;
 }
 
 function isSession(value: unknown): value is AuthSession {
@@ -65,16 +66,30 @@ function writeSession(session: AuthSession | null): void {
   }
 }
 
+/**
+ * The session the app always falls back to. The app has no login page, so
+ * there is always an active identity — at minimum, the first demo customer.
+ */
+export const defaultSession: AuthSession = {
+  username: DEFAULT_DEMO_USER.username,
+  password: DEMO_PASSWORD,
+  displayName: DEFAULT_DEMO_USER.displayName,
+  role: DEFAULT_DEMO_USER.role,
+  customerId: DEFAULT_DEMO_USER.mockCustomerId || undefined,
+};
+
 export const authSlice = createSlice({
   name: 'auth',
-  initialState: { session: readStoredSession() } as AuthState,
+  // Falls back to customer01 when there is no stored session (e.g. fresh tab).
+  initialState: { session: readStoredSession() ?? defaultSession } as AuthState,
   reducers: {
     signedIn(state, action: PayloadAction<AuthSession>) {
       state.session = action.payload;
       writeSession(action.payload);
     },
+    /** Resets to the default demo user. No login page exists to return to. */
     signedOut(state) {
-      state.session = null;
+      state.session = defaultSession;
       writeSession(null);
     },
   },

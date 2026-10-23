@@ -12,11 +12,6 @@ interface Options {
   /** URL to start on. Defaults to `/`. */
   route?: string;
   preloadedState?: Partial<RootState>;
-  /**
-   * Signed-in demo user. Defaults to customer 01, so existing tests exercise
-   * the pages instead of the login screen. Pass `false` for an anonymous user.
-   */
-  authenticated?: boolean;
   /** Role of the signed-in user. Defaults to `CUSTOMER`. */
   role?: DemoRole;
 }
@@ -41,11 +36,10 @@ const demoSession = (role: DemoRole): AuthSession =>
 export function renderWithProviders({
   route = '/',
   preloadedState,
-  authenticated = true,
   role = 'CUSTOMER',
 }: Options = {}) {
   const auth = preloadedState?.auth ?? {
-    session: authenticated ? demoSession(role) : null,
+    session: demoSession(role),
   };
   const store = makeStore({ ...preloadedState, auth }, { refetchOnFocus: false });
   const router = createMemoryRouter(routes, { initialEntries: [route] });

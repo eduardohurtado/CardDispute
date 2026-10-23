@@ -113,7 +113,7 @@ export interface TimelineEvent {
 
 /** Envelope for paged list endpoints, as the backend serializes a Spring `Page`. */
 export interface PagedResponse<T> {
-  content: T[];
+  items: T[];
   page: number;
   size: number;
   totalElements: number;

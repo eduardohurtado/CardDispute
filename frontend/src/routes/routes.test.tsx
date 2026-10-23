@@ -54,13 +54,6 @@ describe('layout state', () => {
 });
 
 describe('role guards', () => {
-  it('sends an anonymous visitor to the login screen', async () => {
-    const { router } = renderWithProviders({ route: '/disputes', authenticated: false });
-
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/login');
-  });
-
   it('keeps a customer out of the analyst workspace', async () => {
     renderWithProviders({ route: '/analyst' });
 
@@ -86,15 +79,5 @@ describe('role guards', () => {
 
     expect(await screen.findByRole('link', { name: 'Analyst' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My Disputes' })).not.toBeInTheDocument();
-  });
-
-  it('signs the user out from the header', async () => {
-    const { router } = renderWithProviders({ route: '/disputes' });
-
-    await screen.findByRole('heading', { name: 'My Disputes' });
-    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
-
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe('/login');
   });
 });

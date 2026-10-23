@@ -3,6 +3,7 @@ import {
   AUTH_STORAGE_KEY,
   authSlice,
   canAccess,
+  defaultSession,
   fallbackFor,
   landingFor,
   readStoredSession,
@@ -30,12 +31,14 @@ describe('authSlice', () => {
     expect(JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY) ?? 'null')).toEqual(session);
   });
 
-  it('clears the user and the stored session', () => {
+  it('resets to the default session and clears storage on signedOut', () => {
     const signedInState = authSlice.reducer(undefined, signedIn(session));
     const state = authSlice.reducer(signedInState, signedOut());
 
-    expect(selectIsAuthenticated({ auth: state })).toBe(false);
-    expect(selectRole({ auth: state })).toBeNull();
+    // No login page — signedOut resets to the default customer01 identity.
+    expect(selectIsAuthenticated({ auth: state })).toBe(true);
+    expect(selectRole({ auth: state })).toBe('CUSTOMER');
+    expect(state.session.username).toBe(defaultSession.username);
     expect(sessionStorage.getItem(AUTH_STORAGE_KEY)).toBeNull();
   });
 

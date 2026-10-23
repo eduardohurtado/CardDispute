@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw/http';
 import { DEFAULT_DEMO_USER, findDemoUser } from '@/config/demoUsers';
 import type { ApiProblem, FieldViolation, PageResponse } from '@/types/api';
 import type { CreateDisputeRequest, Transaction } from '@/types/transaction';
-import { DEMO_ANALYST_HEADER, DEMO_ANALYST_ID, DEMO_CUSTOMER_HEADER, DEMO_CUSTOMER_ID } from '@/config/demoSession';
+import { DEMO_ANALYST_HEADER, DEMO_ANALYST_ID } from '@/config/demoSession';
 import type {
   Dispute,
   DisputeDecisionType,

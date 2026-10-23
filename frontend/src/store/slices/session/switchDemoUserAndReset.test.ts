@@ -9,7 +9,7 @@ import {
   showToast,
   toggleSidebar,
 } from '@/store/slices/ui/uiSlice';
-import { selectUsername } from './sessionSlice';
+import { selectSession } from '@/store/slices/auth/authSlice';
 import { switchDemoUserAndReset } from './switchDemoUserAndReset';
 
 async function storeWithSessionTraces() {
@@ -30,7 +30,7 @@ describe('switchDemoUserAndReset', () => {
 
     const state = store.getState();
     expect(switched).toBe(true);
-    expect(selectUsername(state)).toBe('customer02');
+    expect(selectSession(state).username).toBe('customer02');
     expect(Object.keys(state.api.queries)).toHaveLength(0);
     expect(selectIsSidebarOpen(state)).toBe(true);
     expect(selectToasts(state).map((toast) => toast.message)).toEqual(['Now using Demo Customer 02']);
@@ -51,7 +51,7 @@ describe('switchDemoUserAndReset', () => {
     expect(store.dispatch(switchDemoUserAndReset('nobody'))).toBe(false);
 
     const state = store.getState();
-    expect(selectUsername(state)).toBe('customer01');
+    expect(selectSession(state).username).toBe('customer01');
     expect(selectToasts(state).map((toast) => toast.message)).toEqual(['Dispute submitted']);
     expect(Object.keys(state.api.queries)).not.toHaveLength(0);
   });
