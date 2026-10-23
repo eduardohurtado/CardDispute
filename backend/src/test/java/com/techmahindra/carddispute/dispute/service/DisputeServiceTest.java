@@ -38,7 +38,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -96,7 +95,7 @@ class DisputeServiceTest {
     }
 
     @Test
-    void associatingWorkflowInstanceIsAudited() {
+    void associatingWorkflowInstanceIsNotAudited() {
         DisputeCase dispute = DisputeCase.submit(CUSTOMER_ID, UUID.randomUUID(), UUID.randomUUID(),
                 ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
         when(disputeRepository.findById(dispute.getDisputeId())).thenReturn(Optional.of(dispute));
@@ -104,8 +103,7 @@ class DisputeServiceTest {
         service.associateWorkflowInstance(dispute.getDisputeId(), "process-1", "corr-2");
 
         assertThat(dispute.getWorkflowInstanceId()).isEqualTo("process-1");
-        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.WORKFLOW_STARTED), isNull(),
-                isNull(), eq("SYSTEM"), eq("corr-2"), contains("process-1"), eq(NOW));
+        verifyNoInteractions(auditService);
     }
 
     @Test

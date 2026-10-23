@@ -961,7 +961,7 @@
         },
         {
           "name": "Get dispute timeline",
-          "description": "Business audit events in chronological order (not the Camunda history). The process runs synchronously on submit and the instance id is linked afterwards, so WORKFLOW_STARTED comes last.",
+          "description": "Business audit events in chronological order (not the Camunda history or technical workflow events).",
           "event": [
             {
               "listen": "test",
@@ -972,7 +972,7 @@
                   "  pm.response.to.have.status(200);",
                   "  const events = pm.response.json();",
                   "  pm.expect(events.map(e => e.eventType)).to.eql(",
-                  "    ['CREATED', 'STATE_CHANGED', 'ASSESSED', 'DECIDED', 'WORKFLOW_STARTED']);",
+                  "    ['CREATED', 'STATE_CHANGED', 'ASSESSED', 'DECIDED']);",
                   "  pm.expect(events[0].actorId).to.eql(pm.variables.get('customerUser'));",
                   "  pm.expect(events[3].newStatus).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
                   "  events.forEach(e => pm.expect(e).to.not.have.property('correlationId'));",

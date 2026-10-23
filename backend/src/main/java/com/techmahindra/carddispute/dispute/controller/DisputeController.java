@@ -194,8 +194,8 @@ public interface DisputeController {
             summary = "Get dispute timeline",
             description = """
                     Returns the business audit events of the dispute in
-                    chronological order: creation, workflow start, status
-                    changes, assessment and decision.
+                    chronological order: creation, status changes,
+                    assessment and decision.
 
                     This is the business audit trail, not the Camunda history.
                     """

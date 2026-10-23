@@ -153,9 +153,8 @@ public class DisputeService {
 
         disputeRepository.saveAndFlush(dispute);
 
-        auditService.record(disputeId, AuditEventType.WORKFLOW_STARTED, null, null,
-                DisputeLifecycleService.SYSTEM_ACTOR, correlationId,
-                "Workflow instance " + processInstanceId, clock.instant());
+        log.info("Dispute {} linked to workflow instance {} (correlationId={})", disputeId, processInstanceId,
+                correlationId);
     }
 
 
