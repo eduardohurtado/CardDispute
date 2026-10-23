@@ -9,6 +9,7 @@ import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
 import com.techmahindra.carddispute.dispute.dto.DecisionResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.dto.DisputeSummaryResponse;
+import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeCase;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.repository.DisputeCaseRepository;
@@ -40,6 +41,7 @@ public class DisputeService {
 
     private final DisputeCaseRepository disputeRepository;
     private final DisputeDecisionRepository decisionRepository;
+    private final DisputeAuditService auditService;
     private final TransactionService transactionService;
     private final Clock clock;
 
@@ -70,6 +72,9 @@ public class DisputeService {
             log.info("Concurrent submission rejected by unique index for transaction {}", transaction.getTransactionId());
             throw openDisputeExists();
         }
+
+        auditService.record(dispute.getDisputeId(), AuditEventType.CREATED, null, DisputeStatus.SUBMITTED,
+                customer.getUsername(), correlationId, "Dispute submitted by customer", now);
 
         log.info("Dispute {} submitted by {} for transaction {} (correlationId={})", dispute.getDisputeId(),
                 customer.getUsername(), transaction.getTransactionId(), correlationId);
@@ -111,7 +116,8 @@ public class DisputeService {
     @Transactional("cardDisputeTransactionManager")
     public void associateWorkflowInstance(
             UUID disputeId,
-            String processInstanceId) {
+            String processInstanceId,
+            String correlationId) {
 
         if (disputeId == null) {
             throw new IllegalArgumentException(
@@ -138,6 +144,10 @@ public class DisputeService {
         dispute.setWorkflowInstanceId(processInstanceId);
 
         disputeRepository.saveAndFlush(dispute);
+
+        auditService.record(disputeId, AuditEventType.WORKFLOW_STARTED, null, null,
+                DisputeLifecycleService.SYSTEM_ACTOR, correlationId,
+                "Workflow instance " + processInstanceId, clock.instant());
     }
 
 

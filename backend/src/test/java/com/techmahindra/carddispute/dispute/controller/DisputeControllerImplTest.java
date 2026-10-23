@@ -87,7 +87,7 @@ class DisputeControllerImplTest {
 
         verify(workflowService, times(1)).startDisputeProcess(eq(disputeId),anyString());
         verify(disputeService).get(any(AuthenticatedUser.class),eq(disputeId));
-        verify(disputeService, times(1)).associateWorkflowInstance(eq(disputeId),eq(processInstanceId));
+        verify(disputeService, times(1)).associateWorkflowInstance(eq(disputeId), eq(processInstanceId), anyString());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.techmahindra.carddispute.common.exception.ResourceNotFoundException;
 import com.techmahindra.carddispute.security.AuthenticatedUser;
 import com.techmahindra.carddispute.security.Role;
 import com.techmahindra.carddispute.dispute.dto.CreateDisputeRequest;
+import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeCase;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.entity.ReasonCode;
@@ -35,9 +36,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DisputeServiceTest {
@@ -51,6 +56,7 @@ class DisputeServiceTest {
 
     private DisputeCaseRepository disputeRepository;
     private CardTransactionRepository transactionRepository;
+    private DisputeAuditService auditService;
     private DisputeService service;
 
     @BeforeEach
@@ -62,7 +68,8 @@ class DisputeServiceTest {
 
         TransactionService transactionService = new TransactionService(transactionRepository,
                 new DisputeRulesProperties(Duration.ofDays(60), Duration.ofHours(1), Duration.ofHours(24), Map.of()));
-        service = new DisputeService(disputeRepository, decisionRepository, transactionService,
+        auditService = mock(DisputeAuditService.class);
+        service = new DisputeService(disputeRepository, decisionRepository, auditService, transactionService,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -82,6 +89,21 @@ class DisputeServiceTest {
         assertThat(saved.getValue().getCustomerId()).isEqualTo(CUSTOMER_ID);
         assertThat(saved.getValue().getCandidateTransactionId()).isEqualTo(candidate.getTransactionId());
         assertThat(saved.getValue().getDescription()).isEqualTo("charged twice");
+        verify(auditService).record(eq(response.disputeId()), eq(AuditEventType.CREATED), isNull(),
+                eq(DisputeStatus.SUBMITTED), eq("customer01"), eq("corr-1"), any(), eq(NOW));
+    }
+
+    @Test
+    void associatingWorkflowInstanceIsAudited() {
+        DisputeCase dispute = DisputeCase.submit(CUSTOMER_ID, UUID.randomUUID(), UUID.randomUUID(),
+                ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
+        when(disputeRepository.findById(dispute.getDisputeId())).thenReturn(Optional.of(dispute));
+
+        service.associateWorkflowInstance(dispute.getDisputeId(), "process-1", "corr-2");
+
+        assertThat(dispute.getWorkflowInstanceId()).isEqualTo("process-1");
+        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.WORKFLOW_STARTED), isNull(),
+                isNull(), eq("SYSTEM"), eq("corr-2"), contains("process-1"), eq(NOW));
     }
 
     @Test
@@ -146,6 +168,7 @@ class DisputeServiceTest {
                 .isInstanceOf(ConflictException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "OPEN_DISPUTE_EXISTS");
         verify(disputeRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(auditService);
     }
 
     @Test
@@ -158,6 +181,7 @@ class DisputeServiceTest {
                 request(transaction.getTransactionId(), candidate.getTransactionId()), "c"))
                 .isInstanceOf(ConflictException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "OPEN_DISPUTE_EXISTS");
+        verifyNoInteractions(auditService);
     }
 
     @Test

@@ -36,17 +36,20 @@ public class DisputeControllerImpl implements DisputeController {
     public ResponseEntity<DisputeResponse> submit(@AuthenticationPrincipal AuthenticatedUser user,
                                                   @Valid @RequestBody CreateDisputeRequest request) {
 
-        DisputeResponse created = disputeService.submit(user, request, CorrelationId.current());
+        String correlationId = CorrelationId.current();
+
+        DisputeResponse created = disputeService.submit(user, request, correlationId);
 
         String processInstanceId =
                 workflowService.startDisputeProcess(
                         created.disputeId(),
-                        CorrelationId.current()
+                        correlationId
                 );
 
         disputeService.associateWorkflowInstance(
                 created.disputeId(),
-                processInstanceId
+                processInstanceId,
+                correlationId
         );
 
         DisputeResponse current = disputeService.get(user, created.disputeId());
