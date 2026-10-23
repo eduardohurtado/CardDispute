@@ -22,6 +22,67 @@ services:
 
     restart: unless-stopped
 
+
+  # =========================================
+  # RABBITMQ
+  # =========================================
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    container_name: bank-poc-rabbitmq
+
+    # Stable identity across container recreations
+    hostname: rabbitmq
+
+    environment:
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RabbitMQ user required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RabbitMQ password required}
+
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+    restart: unless-stopped
+
+  
+  # =========================================
+  # NESTJS NOTIFICATION WORKER
+  # =========================================
+  notifications:
+    build:
+      context: ../notifications
+      dockerfile: ../infra/dockerfiles/notifications.Dockerfile
+
+    container_name: bank-poc-notifications
+
+    environment:
+      NODE_ENV: production
+
+      RABBITMQ_CONNECTION_STRING: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_QUEUE_NAME: card-dispute.notifications
+      RABBITMQ_EXCHANGE_NAME: card-dispute.events
+      RABBITMQ_ROUTING_KEY: dispute.#
+
+      BACKEND_AUTHORIZATION_KEY: ${BACKEND_AUTHORIZATION_KEY:?Backend authorization key required}
+      BACKEND_API_BASE_URL: ${BACKEND_API_BASE_URL:-http://backend:8080/api}
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+
   # =========================================
   # DATABASE INITIALIZATION
   # =========================================
@@ -50,3 +111,4 @@ services:
 
 volumes:
   sqlserver_data:
+  rabbitmq_data:
