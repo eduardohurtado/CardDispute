@@ -1,6 +1,7 @@
 package com.techmahindra.carddispute.dispute.service;
 
 import com.techmahindra.carddispute.common.exception.ConflictException;
+import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DecisionSource;
 import com.techmahindra.carddispute.dispute.entity.DecisionType;
 import com.techmahindra.carddispute.dispute.entity.DisputeCase;
@@ -35,6 +36,7 @@ public class DisputeLifecycleService {
 
     private final DisputeCaseRepository disputeRepository;
     private final DisputeDecisionRepository decisionRepository;
+    private final DisputeAuditService auditService;
     private final TransactionService transactionService;
     private final DuplicateMatchingService matchingService;
     private final Clock clock;
@@ -56,7 +58,10 @@ public class DisputeLifecycleService {
         requireStatus(dispute, DisputeStatus.IN_REVIEW);
 
         MatchAssessment assessment = evaluate(dispute);
-        dispute.recordAssessment(assessment.outcome(), clock.instant());
+        Instant now = clock.instant();
+        dispute.recordAssessment(assessment.outcome(), now);
+        auditService.record(disputeId, AuditEventType.ASSESSED, dispute.getStatus(), dispute.getStatus(),
+                SYSTEM_ACTOR, correlationId, assessment.outcome() + ": " + assessment.explanation(), now);
 
         log.info("Dispute {} assessed as {}: {} (correlationId={})", disputeId, assessment.outcome(),
                 assessment.explanation(), correlationId);
@@ -88,9 +93,12 @@ public class DisputeLifecycleService {
         String rationale = "Automated assessment: " + assessment.explanation();
 
         Instant now = clock.instant();
+        DisputeStatus oldStatus = dispute.getStatus();
         dispute.transitionTo(decisionType.resultingStatus(), now);
         decisionRepository.save(DisputeDecision.of(disputeId, decisionType, DecisionSource.AUTOMATED, rationale,
                 SYSTEM_ACTOR, now));
+        auditService.record(disputeId, AuditEventType.DECIDED, oldStatus, dispute.getStatus(), SYSTEM_ACTOR,
+                correlationId, decisionType + ": " + rationale, now);
         // Increment 3: save the notification outbox event here, in this same transaction
 
         log.info("Dispute {} resolved automatically as {} (correlationId={})", disputeId, decisionType, correlationId);
@@ -116,8 +124,11 @@ public class DisputeLifecycleService {
     }
 
     private void changeStatus(DisputeCase dispute, DisputeStatus target, String correlationId) {
+        Instant now = clock.instant();
         DisputeStatus oldStatus = dispute.getStatus();
-        dispute.transitionTo(target, clock.instant());
+        dispute.transitionTo(target, now);
+        auditService.record(dispute.getDisputeId(), AuditEventType.STATE_CHANGED, oldStatus, target, SYSTEM_ACTOR,
+                correlationId, null, now);
         log.info("Dispute {} moved from {} to {} (correlationId={})", dispute.getDisputeId(), oldStatus, target,
                 correlationId);
     }
