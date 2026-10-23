@@ -5,7 +5,7 @@ import {
   type ResolvedTheme,
   type ThemePreference,
 } from '@/config/theme';
-import { switchDemoUser } from '@/store/slices/session/sessionSlice';
+import { signedIn } from '@/store/slices/auth/authSlice';
 
 export type { ResolvedTheme, ThemePreference } from '@/config/theme';
 
@@ -63,10 +63,11 @@ export const uiSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // Soft reset when the demo user changes: nothing from the previous user's
-    // session stays. The theme is a device setting, so it is kept.
-    builder.addCase(switchDemoUser, (state, action) => {
-      if (!findDemoUser(action.payload)) {
+    // Soft reset when the demo user switches: clear toasts and reopen the
+    // sidebar so nothing from the previous user's session stays. The theme is
+    // a device setting, so it is kept.
+    builder.addCase(signedIn, (state, action) => {
+      if (!findDemoUser(action.payload.username)) {
         return;
       }
       state.toasts = [];

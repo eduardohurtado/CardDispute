@@ -32,6 +32,12 @@ export const DEMO_USERS: readonly DemoUser[] = [
     role: 'CUSTOMER',
     mockCustomerId: '99999999-9999-4999-8999-999999999999',
   },
+  {
+    username: 'analyst01',
+    displayName: 'Analyst 01',
+    role: 'DISPUTE_ANALYST',
+    mockCustomerId: '',
+  },
 ];
 
 export const DEFAULT_DEMO_USER: DemoUser = DEMO_USERS[0]!;

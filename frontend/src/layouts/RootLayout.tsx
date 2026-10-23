@@ -3,9 +3,10 @@ import { DemoUserPicker } from '@/components/session/DemoUserPicker';
 import { ThemePicker } from '@/components/theme/ThemePicker';
 import { Toaster } from '@/components/Toaster';
 import { paths } from '@/routes/paths';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { selectRole, selectSession, signedOut } from '@/store/slices/auth/authSlice';
+import { useAppSelector } from '@/store';
+import { selectRole } from '@/store/slices/auth/authSlice';
 import { selectIsSidebarOpen, toggleSidebar } from '@/store/slices/ui/uiSlice';
+import { useAppDispatch } from '@/store';
 
 // NavLink sets aria-current="page" on the active link.
 const navLinkClass = 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 aria-[current=page]:font-semibold aria-[current=page]:underline';
@@ -16,7 +17,6 @@ export function RootLayout() {
   const dispatch = useAppDispatch();
   const isSidebarOpen = useAppSelector(selectIsSidebarOpen);
   const role = useAppSelector(selectRole);
-  const session = useAppSelector(selectSession);
 
   return (
     <div className="min-h-screen">
@@ -44,15 +44,21 @@ export function RootLayout() {
             <NavLink to={paths.home} end className={navLinkClass}>
               Home
             </NavLink>
-            <NavLink to={paths.disputes} end className={navLinkClass}>
-              My Disputes
-            </NavLink>
-            <NavLink to={paths.newDispute} end className={navLinkClass}>
-              Report a charge
-            </NavLink>
-            <NavLink to={paths.analyst} end className={navLinkClass}>
-              Analyst
-            </NavLink>
+            {role === 'CUSTOMER' && (
+              <>
+                <NavLink to={paths.disputes} end className={navLinkClass}>
+                  My Disputes
+                </NavLink>
+                <NavLink to={paths.newDispute} end className={navLinkClass}>
+                  Report a charge
+                </NavLink>
+              </>
+            )}
+            {role === 'DISPUTE_ANALYST' && (
+              <NavLink to={paths.analyst} end className={navLinkClass}>
+                Analyst
+              </NavLink>
+            )}
           </nav>
         )}
         <main className="flex-1 p-6">

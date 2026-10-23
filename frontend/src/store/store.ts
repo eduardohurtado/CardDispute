@@ -1,12 +1,11 @@
 import { combineSlices, configureStore, type Action, type ThunkAction } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { baseApi } from './api/baseApi';
-import { sessionSlice } from './slices/session/sessionSlice';
 import { authSlice } from './slices/auth/authSlice';
 import { uiSlice } from './slices/ui/uiSlice';
 
 // Add new slices here. Lazy-loaded features can use `rootReducer.inject(slice)` instead.
-export const rootReducer = combineSlices(uiSlice, sessionSlice, authSlice, baseApi);
+export const rootReducer = combineSlices(uiSlice, authSlice, baseApi);
 
 export type RootState = ReturnType<typeof rootReducer>;
 

@@ -1,4 +1,4 @@
-import { DEMO_CUSTOMER_02_ID, DEMO_USERS } from '@/config/demoUsers';
+import { DEMO_USERS } from '@/config/demoUsers';
 import type { Dispute, DisputeTransaction, TimelineEvent } from '@/types/dispute';
 import type { Transaction } from '@/types/transaction';
 import type { AnalystTask } from '@/types/analyst';
@@ -12,22 +12,17 @@ import type { AnalystTask } from '@/types/analyst';
 
 /** customer01 in the mock API. */
 export const DEMO_CUSTOMER_ID = DEMO_USERS[0]!.mockCustomerId;
-/** customer02 in the mock API. */
+
 /**
  * The "now" of the mock backend.
  *
  * The queues are relative to the deadline, so the mock needs a fixed clock to
  * stay reproducible. The real backend uses the server clock.
  */
-export const MOCK_NOW = '2026-10-14T12:00:00Z';
-
-const OTHER_CUSTOMER_ID = DEMO_USERS[1]!.mockCustomerId;
-
-/**
- * Fixed "current time" of the mock API. The 60-day eligibility window is
- * measured from it, so results never depend on the real clock.
- */
 export const MOCK_NOW = '2026-10-21T12:00:00Z';
+
+/** customer02 in the mock API. */
+const OTHER_CUSTOMER_ID = DEMO_USERS[1]!.mockCustomerId;
 
 const coffeeShopCharge: DisputeTransaction = {
   transactionId: 'a1000000-0000-4000-8000-000000000001',
@@ -133,26 +128,7 @@ export interface MockTransaction extends Transaction {
   customerId: string;
 }
 
-function owned(
-  transaction: DisputeTransaction,
-  customerId: string = DEMO_CUSTOMER_ID,
-  reference: string | null = null,
-): MockTransaction {
-  return { ...transaction, reference, customerId };
-}
-
 /** Charges no dispute uses yet. The Éxito pair is a clear duplicate to submit. */
-const supermarketCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000008',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:30:00Z',
-  occurredAt: '2026-10-15T18:02:00Z',
-};
-
 const supermarketDuplicate: DisputeTransaction = {
   transactionId: 'a1000000-0000-4000-8000-000000000009',
   merchantName: 'Supermercado Éxito',
@@ -199,27 +175,6 @@ const bakeryCharge: DisputeTransaction = {
   occurredAt: '2026-10-14T07:30:00Z',
 };
 
-/** Every synthetic card transaction, newest first. */
-export const demoTransactions: MockTransaction[] = [
-  owned(taxiCharge),
-  owned(supermarketDuplicate, DEMO_CUSTOMER_ID, 'EXITO-0415-B'),
-  owned(supermarketCharge, DEMO_CUSTOMER_ID, 'EXITO-0415-A'),
-  owned(bakeryCharge, OTHER_CUSTOMER_ID),
-  owned(coffeeShopDuplicate),
-  owned(coffeeShopCharge),
-  owned(fuelStopCharge),
-  owned(pharmacyCharge),
-  owned(onlineStoreDuplicate),
-  owned(onlineStoreCharge),
-  owned(cinemaCharge),
-  owned(bookshopCharge),
-];
-
-/** A transaction as stored by the mock API: the API shape plus its owner. */
-export interface MockTransaction extends Transaction {
-  customerId: string;
-}
-
 function owned(
   transaction: DisputeTransaction,
   customerId: string = DEMO_CUSTOMER_ID,
@@ -238,226 +193,6 @@ const supermarketCharge: DisputeTransaction = {
   status: 'POSTED',
   postedAt: '2026-10-15T18:30:00Z',
   occurredAt: '2026-10-15T18:02:00Z',
-};
-
-const supermarketDuplicate: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000009',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:50:00Z',
-  occurredAt: '2026-10-15T18:22:00Z',
-};
-
-/** Still pending: not listed as POSTED and rejected on submission. */
-const taxiCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000010',
-  merchantName: 'Taxi Libre',
-  amount: 18500,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'PENDING',
-  postedAt: null,
-  occurredAt: '2026-10-20T22:10:00Z',
-};
-
-/** Posted more than 60 days before MOCK_NOW: outside the dispute window. */
-const bookshopCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000011',
-  merchantName: 'Librería Nacional',
-  amount: 62000,
-  currency: 'COP',
-  cardLast4: '9921',
-  status: 'POSTED',
-  postedAt: '2026-07-01T16:00:00Z',
-  occurredAt: '2026-07-01T15:40:00Z',
-};
-
-const bakeryCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000012',
-  merchantName: 'Panadería La 80',
-  amount: 9800,
-  currency: 'COP',
-  cardLast4: '7302',
-  status: 'POSTED',
-  postedAt: '2026-10-14T07:45:00Z',
-  occurredAt: '2026-10-14T07:30:00Z',
-};
-
-/** Every synthetic card transaction, newest first. */
-export const demoTransactions: MockTransaction[] = [
-  owned(taxiCharge),
-  owned(supermarketDuplicate, DEMO_CUSTOMER_ID, 'EXITO-0415-B'),
-  owned(supermarketCharge, DEMO_CUSTOMER_ID, 'EXITO-0415-A'),
-  owned(bakeryCharge, OTHER_CUSTOMER_ID),
-  owned(coffeeShopDuplicate),
-  owned(coffeeShopCharge),
-  owned(fuelStopCharge),
-  owned(pharmacyCharge),
-  owned(onlineStoreDuplicate),
-  owned(onlineStoreCharge),
-  owned(cinemaCharge),
-  owned(bookshopCharge),
-];
-
-/** A transaction as stored by the mock API: the API shape plus its owner. */
-export interface MockTransaction extends Transaction {
-  customerId: string;
-}
-
-function owned(
-  transaction: DisputeTransaction,
-  customerId: string = DEMO_CUSTOMER_ID,
-  reference: string | null = null,
-): MockTransaction {
-  return { ...transaction, reference, customerId };
-}
-
-/** Charges no dispute uses yet. The Éxito pair is a clear duplicate to submit. */
-const supermarketCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000008',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:30:00Z',
-  occurredAt: '2026-10-15T18:02:00Z',
-};
-
-const supermarketDuplicate: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000009',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:50:00Z',
-  occurredAt: '2026-10-15T18:22:00Z',
-};
-
-/** Still pending: not listed as POSTED and rejected on submission. */
-const taxiCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000010',
-  merchantName: 'Taxi Libre',
-  amount: 18500,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'PENDING',
-  postedAt: null,
-  occurredAt: '2026-10-20T22:10:00Z',
-};
-
-/** Posted more than 60 days before MOCK_NOW: outside the dispute window. */
-const bookshopCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000011',
-  merchantName: 'Librería Nacional',
-  amount: 62000,
-  currency: 'COP',
-  cardLast4: '9921',
-  status: 'POSTED',
-  postedAt: '2026-07-01T16:00:00Z',
-  occurredAt: '2026-07-01T15:40:00Z',
-};
-
-const bakeryCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000012',
-  merchantName: 'Panadería La 80',
-  amount: 9800,
-  currency: 'COP',
-  cardLast4: '7302',
-  status: 'POSTED',
-  postedAt: '2026-10-14T07:45:00Z',
-  occurredAt: '2026-10-14T07:30:00Z',
-};
-
-/** Every synthetic card transaction, newest first. */
-export const demoTransactions: MockTransaction[] = [
-  owned(taxiCharge),
-  owned(supermarketDuplicate, DEMO_CUSTOMER_ID, 'EXITO-0415-B'),
-  owned(supermarketCharge, DEMO_CUSTOMER_ID, 'EXITO-0415-A'),
-  owned(bakeryCharge, OTHER_CUSTOMER_ID),
-  owned(coffeeShopDuplicate),
-  owned(coffeeShopCharge),
-  owned(fuelStopCharge),
-  owned(pharmacyCharge),
-  owned(onlineStoreDuplicate),
-  owned(onlineStoreCharge),
-  owned(cinemaCharge),
-  owned(bookshopCharge),
-];
-
-/** A transaction as stored by the mock API: the API shape plus its owner. */
-export interface MockTransaction extends Transaction {
-  customerId: string;
-}
-
-function owned(
-  transaction: DisputeTransaction,
-  customerId: string = DEMO_CUSTOMER_ID,
-  reference: string | null = null,
-): MockTransaction {
-  return { ...transaction, reference, customerId };
-}
-
-/** Charges no dispute uses yet. The Éxito pair is a clear duplicate to submit. */
-const supermarketCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000008',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:30:00Z',
-  occurredAt: '2026-10-15T18:02:00Z',
-};
-
-const supermarketDuplicate: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000009',
-  merchantName: 'Supermercado Éxito',
-  amount: 154300,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'POSTED',
-  postedAt: '2026-10-15T18:50:00Z',
-  occurredAt: '2026-10-15T18:22:00Z',
-};
-
-/** Still pending: not listed as POSTED and rejected on submission. */
-const taxiCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000010',
-  merchantName: 'Taxi Libre',
-  amount: 18500,
-  currency: 'COP',
-  cardLast4: '4417',
-  status: 'PENDING',
-  postedAt: null,
-  occurredAt: '2026-10-20T22:10:00Z',
-};
-
-/** Posted more than 60 days before MOCK_NOW: outside the dispute window. */
-const bookshopCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000011',
-  merchantName: 'Librería Nacional',
-  amount: 62000,
-  currency: 'COP',
-  cardLast4: '9921',
-  status: 'POSTED',
-  postedAt: '2026-07-01T16:00:00Z',
-  occurredAt: '2026-07-01T15:40:00Z',
-};
-
-const bakeryCharge: DisputeTransaction = {
-  transactionId: 'a1000000-0000-4000-8000-000000000012',
-  merchantName: 'Panadería La 80',
-  amount: 9800,
-  currency: 'COP',
-  cardLast4: '7302',
-  status: 'POSTED',
-  postedAt: '2026-10-14T07:45:00Z',
-  occurredAt: '2026-10-14T07:30:00Z',
 };
 
 /** Every synthetic card transaction, newest first. */
@@ -568,7 +303,7 @@ function createDemoDisputes(): DemoDispute[] {
     },
     {
       disputeId: 'b2000000-0000-4000-8000-000000000006',
-      customerId: DEMO_CUSTOMER_02_ID,
+      customerId: OTHER_CUSTOMER_ID,
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: null,
       status: 'RESOLVED_DUPLICATE_SUPPORTED',
@@ -588,7 +323,7 @@ function createDemoDisputes(): DemoDispute[] {
     },
     {
       disputeId: 'b2000000-0000-4000-8000-000000000007',
-      customerId: DEMO_CUSTOMER_02_ID,
+      customerId: OTHER_CUSTOMER_ID,
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'The same order was billed twice.',
       status: 'AWAITING_ANALYST',
@@ -602,7 +337,7 @@ function createDemoDisputes(): DemoDispute[] {
     },
     {
       disputeId: 'b2000000-0000-4000-8000-000000000008',
-      customerId: DEMO_CUSTOMER_02_ID,
+      customerId: OTHER_CUSTOMER_ID,
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'Two charges from the same pharmacy on the same day.',
       status: 'AWAITING_ANALYST',
@@ -725,7 +460,7 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000002',
       disputeId: 'b2000000-0000-4000-8000-000000000007',
-      customerId: DEMO_CUSTOMER_02_ID,
+      customerId: DEMO_CUSTOMER_ID,
       status: 'AWAITING_ANALYST',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'The same order was billed twice.',
@@ -749,7 +484,7 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000003',
       disputeId: 'b2000000-0000-4000-8000-000000000008',
-      customerId: DEMO_CUSTOMER_02_ID,
+      customerId: DEMO_CUSTOMER_ID,
       status: 'AWAITING_ANALYST',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'Two charges from the same pharmacy on the same day.',
