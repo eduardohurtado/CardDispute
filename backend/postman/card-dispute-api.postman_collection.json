@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Card Dispute POC API",
-    "description": "Increment 1 endpoints of the Card Dispute POC backend (synthetic data only).\n\nAuth: HTTP Basic with the demo users (customer01 / customer02 / analyst01, password `demo`). The collection uses customer01 by default; folders override it where needed.\n\nEvery request gets a random `X-Correlation-Id` header (collection pre-request script). Successful submissions store the new id in the `disputeId` collection variable, used by the query requests.\n\nRun the 'Submit scenarios' folder once on a fresh seed: re-running it returns 409 OPEN_DISPUTE_EXISTS while those disputes are still open.",
+    "description": "Increment 1 endpoints of the Card Dispute POC backend (synthetic data only).\n\nAuth: HTTP Basic with the seeded demo users (customer001..customer100 and analyst001, password `demo`). The collection uses customer001 by default; folders override it where needed.\n\nTransaction ids follow the seed formula `d0020000-0000-4000-8000-{pairIndex*10 + side}` (12 digits), where side 1 is the disputed charge and side 2 its suspected duplicate. For customer001, pair N uses scenario N-1 of `003-Demo-seed.sql`.\n\nThe Camunda process runs synchronously on submit: SUPPORTED / NOT_SUPPORTED cases come back resolved, MANUAL_REVIEW cases stay IN_REVIEW (analyst review is Increment 2).\n\nEvery request gets a random `X-Correlation-Id` header (collection pre-request script).\n\nRun the folders in order on a fresh seed. Re-running '02 - Submit scenarios' returns 409 for the MANUAL_REVIEW cases, because those disputes are still open.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -24,12 +24,12 @@
   ],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
-    { "key": "customerUser", "value": "customer01" },
-    { "key": "customer2User", "value": "customer02" },
-    { "key": "analystUser", "value": "analyst01" },
+    { "key": "customerUser", "value": "customer001" },
+    { "key": "customer2User", "value": "customer002" },
+    { "key": "analystUser", "value": "analyst001" },
     { "key": "password", "value": "demo" },
     { "key": "disputeId", "value": "", "description": "Last dispute created by any submission" },
-    { "key": "customer01DisputeId", "value": "", "description": "Dispute created by 'Cafe Aroma' (customer01)" }
+    { "key": "customerDisputeId", "value": "", "description": "Dispute created by 'P01' (customer001, automatically resolved)" }
   ],
   "item": [
     {
@@ -133,7 +133,12 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+                "exec": [
+                  "pm.test('200 with the 100 seeded transactions of the customer', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().totalElements).to.eql(100);",
+                  "});"
+                ]
               }
             }
           ],
@@ -160,7 +165,9 @@
                 "exec": [
                   "pm.test('200 with reference', () => {",
                   "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.json().reference).to.eql('SYN-0001');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.reference).to.eql('POC-000001-1');",
+                  "  pm.expect(body.merchantName).to.eql('POC MERCHANT 001');",
                   "});"
                 ]
               }
@@ -169,14 +176,15 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/transactions/aaaaaaaa-0000-0000-0000-000000000001",
+              "raw": "{{baseUrl}}/api/v1/transactions/d0020000-0000-4000-8000-000000000011",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transactions", "aaaaaaaa-0000-0000-0000-000000000001"]
+              "path": ["api", "v1", "transactions", "d0020000-0000-4000-8000-000000000011"]
             }
           }
         },
         {
           "name": "Get transaction of another customer -> 404",
+          "description": "d0020000-...-000000000511 belongs to customer002.",
           "event": [
             {
               "listen": "test",
@@ -194,9 +202,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/transactions/aaaaaaaa-0000-0000-0000-000000000021",
+              "raw": "{{baseUrl}}/api/v1/transactions/d0020000-0000-4000-8000-000000000511",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "transactions", "aaaaaaaa-0000-0000-0000-000000000021"]
+              "path": ["api", "v1", "transactions", "d0020000-0000-4000-8000-000000000511"]
             }
           }
         },
@@ -236,20 +244,28 @@
     },
     {
       "name": "02 - Submit scenarios (customer)",
-      "description": "Each request submits one seeded scenario. The expected assessment outcome is in the request name; it is applied once the workflow delegates (BE-2) call DisputeLifecycleService. Until then disputes stay SUBMITTED.",
+      "description": "One request per seeded scenario of customer001 (pair N = scenario N-1). Each name ends with '-> ASSESSMENT / STATUS'; the folder test checks both against the 201 response. The pairs 11, 12 and 15 (ineligible) are in '03 - Submit errors'.",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
+              "const expected = pm.info.requestName.match(/-> (\\w+) \\/ (\\w+)$/);",
               "pm.test('201 Created', () => {",
               "  pm.response.to.have.status(201);",
               "  pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/disputes/');",
+              "  pm.collectionVariables.set('disputeId', pm.response.json().disputeId);",
+              "});",
+              "pm.test('Assessment ' + expected[1] + ' and status ' + expected[2], () => {",
               "  const body = pm.response.json();",
-              "  pm.expect(body.status).to.eql('SUBMITTED');",
-              "  pm.expect(body.candidateTransaction).to.be.an('object');",
-              "  pm.collectionVariables.set('disputeId', body.disputeId);",
+              "  pm.expect(body.assessmentOutcome).to.eql(expected[1]);",
+              "  pm.expect(body.status).to.eql(expected[2]);",
+              "  if (expected[2].startsWith('RESOLVED_')) {",
+              "    pm.expect(body.decision.decisionSource).to.eql('AUTOMATED');",
+              "  } else {",
+              "    pm.expect(body.decision).to.eql(null);",
+              "  }",
               "});"
             ]
           }
@@ -257,7 +273,7 @@
       ],
       "item": [
         {
-          "name": "Cafe Aroma, 10 min apart (SUPPORTED)",
+          "name": "P01 Same merchant, 10 min apart -> SUPPORTED / RESOLVED_DUPLICATE_SUPPORTED",
           "event": [
             {
               "listen": "test",
@@ -265,7 +281,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.collectionVariables.set('customer01DisputeId', pm.response.json().disputeId);",
+                  "  pm.collectionVariables.set('customerDisputeId', pm.response.json().disputeId);",
                   "}"
                 ]
               }
@@ -276,7 +292,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"I was charged twice at the coffee shop\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000012\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"I was charged twice for the same purchase\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -287,13 +303,13 @@
           }
         },
         {
-          "name": "Fuel Stop, ambiguous merchant (MANUAL_REVIEW)",
+          "name": "P02 Different amount -> NOT_SUPPORTED / RESOLVED_NOT_SUPPORTED",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000003\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000004\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000021\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000022\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -304,13 +320,13 @@
           }
         },
         {
-          "name": "Electro Hogar, high value (MANUAL_REVIEW)",
+          "name": "P03 High value COP 3,500,000 -> MANUAL_REVIEW / IN_REVIEW",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000005\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000006\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000031\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000032\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -321,13 +337,13 @@
           }
         },
         {
-          "name": "Book Store, different amounts (NOT_SUPPORTED)",
+          "name": "P04 Same merchant, 3 h apart -> MANUAL_REVIEW / IN_REVIEW",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000007\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000008\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000041\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000042\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -338,13 +354,13 @@
           }
         },
         {
-          "name": "Streaming Plus USD, 3 h apart (MANUAL_REVIEW)",
+          "name": "P05 Same reference -> SUPPORTED / RESOLVED_DUPLICATE_SUPPORTED",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000009\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000010\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000051\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000052\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"Same receipt reference charged twice\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -355,13 +371,13 @@
           }
         },
         {
-          "name": "Mercado Central, same reference (SUPPORTED)",
+          "name": "P06 Same reference, different amount -> MANUAL_REVIEW / IN_REVIEW",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000013\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000014\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\",\n  \"description\": \"Same receipt reference charged twice\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000061\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000062\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -372,13 +388,13 @@
           }
         },
         {
-          "name": "Tecno Mundo, same reference + high value (MANUAL_REVIEW)",
+          "name": "P07 Fuel Stop vs Fuel Stop North -> MANUAL_REVIEW / IN_REVIEW",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000015\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000016\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000071\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000072\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -389,13 +405,13 @@
           }
         },
         {
-          "name": "Hotel Andes, same reference + different amount (MANUAL_REVIEW)",
+          "name": "P08 Different merchant -> NOT_SUPPORTED / RESOLVED_NOT_SUPPORTED",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000017\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000018\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000081\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000082\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -406,7 +422,75 @@
           }
         },
         {
-          "name": "Customer 02 - Pizza Palace (SUPPORTED)",
+          "name": "P09 Same merchant, 30 h apart -> NOT_SUPPORTED / RESOLVED_NOT_SUPPORTED",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000091\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000092\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "P10 Different currency -> NOT_SUPPORTED / RESOLVED_NOT_SUPPORTED",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000101\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000102\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "P13 USD 15.99, 10 min apart -> SUPPORTED / RESOLVED_DUPLICATE_SUPPORTED",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000131\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000132\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "P14 USD 800, same reference + high value -> MANUAL_REVIEW / IN_REVIEW",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000141\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000142\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "Customer 002 - P01 Same merchant, 10 min apart -> SUPPORTED / RESOLVED_DUPLICATE_SUPPORTED",
           "request": {
             "auth": {
               "type": "basic",
@@ -419,31 +503,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000022\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes"]
-            }
-          }
-        },
-        {
-          "name": "Customer 02 - Parqueadero, same reference (SUPPORTED)",
-          "request": {
-            "auth": {
-              "type": "basic",
-              "basic": [
-                { "key": "username", "value": "{{customer2User}}", "type": "string" },
-                { "key": "password", "value": "{{password}}", "type": "string" }
-              ]
-            },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000023\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000024\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000511\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000512\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -457,7 +517,7 @@
     },
     {
       "name": "03 - Submit errors (customer)",
-      "description": "Rejected submissions: no dispute is created. Run after '02 - Submit scenarios' so the 409 requests find the open disputes.",
+      "description": "Rejected submissions: no dispute is created. Run after '02 - Submit scenarios' so the 409 requests find the open P03 dispute (MANUAL_REVIEW stays IN_REVIEW).",
       "item": [
         {
           "name": "Missing candidate -> 400",
@@ -482,7 +542,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -508,7 +568,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"FRAUD\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000012\",\n  \"reasonCode\": \"FRAUD\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -539,7 +599,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000022\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000511\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000512\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -550,7 +610,7 @@
           }
         },
         {
-          "name": "Pending transaction -> 422",
+          "name": "P11 Pending transaction -> 422",
           "event": [
             {
               "listen": "test",
@@ -570,7 +630,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000011\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000111\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000112\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -581,7 +641,7 @@
           }
         },
         {
-          "name": "Posted more than 60 days ago -> 422",
+          "name": "P12 Posted 90 days ago -> 422",
           "event": [
             {
               "listen": "test",
@@ -601,7 +661,38 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000012\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000121\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000122\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes"]
+            }
+          }
+        },
+        {
+          "name": "P15 Reversed transaction -> 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 TRANSACTION_NOT_POSTED', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('TRANSACTION_NOT_POSTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000151\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000152\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -632,7 +723,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -663,7 +754,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000021\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000511\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -674,7 +765,7 @@
           }
         },
         {
-          "name": "Same pair again -> 409",
+          "name": "P03 again while still open -> 409",
           "event": [
             {
               "listen": "test",
@@ -694,7 +785,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000031\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000032\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -705,7 +796,7 @@
           }
         },
         {
-          "name": "Reversed pair (candidate already disputed) -> 409",
+          "name": "P03 reversed pair (candidate already disputed) -> 409",
           "event": [
             {
               "listen": "test",
@@ -725,7 +816,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000032\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000031\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -758,7 +849,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactionId\": \"aaaaaaaa-0000-0000-0000-000000000001\",\n  \"candidateTransactionId\": \"aaaaaaaa-0000-0000-0000-000000000002\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
+              "raw": "{\n  \"transactionId\": \"d0020000-0000-4000-8000-000000000011\",\n  \"candidateTransactionId\": \"d0020000-0000-4000-8000-000000000012\",\n  \"reasonCode\": \"POSSIBLE_DUPLICATE\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -813,7 +904,9 @@
                 "exec": [
                   "pm.test('200 filtered', () => {",
                   "  pm.response.to.have.status(200);",
-                  "  pm.response.json().content.forEach(d => pm.expect(d.status).to.eql('SUBMITTED'));",
+                  "  const content = pm.response.json().content;",
+                  "  pm.expect(content).to.be.an('array').that.is.not.empty;",
+                  "  content.forEach(d => pm.expect(d.status).to.eql('RESOLVED_DUPLICATE_SUPPORTED'));",
                   "});"
                 ]
               }
@@ -822,13 +915,13 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes?status=SUBMITTED",
+              "raw": "{{baseUrl}}/api/v1/disputes?status=RESOLVED_DUPLICATE_SUPPORTED",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes"],
               "query": [
                 {
                   "key": "status",
-                  "value": "SUBMITTED",
+                  "value": "RESOLVED_DUPLICATE_SUPPORTED",
                   "description": "SUBMITTED | IN_REVIEW | AWAITING_ANALYST | TIMEOUT_REVIEW_REQUIRED | RESOLVED_DUPLICATE_SUPPORTED | RESOLVED_NOT_SUPPORTED | REJECTED_INELIGIBLE"
                 }
               ]
@@ -843,12 +936,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 with both transactions', () => {",
+                  "pm.test('200 resolved with automated decision', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
-                  "  pm.expect(body.disputeId).to.eql(pm.collectionVariables.get('customer01DisputeId'));",
+                  "  pm.expect(body.disputeId).to.eql(pm.collectionVariables.get('customerDisputeId'));",
+                  "  pm.expect(body.status).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
                   "  pm.expect(body.transaction).to.be.an('object');",
                   "  pm.expect(body.candidateTransaction).to.be.an('object');",
+                  "  pm.expect(body.decision.decisionType).to.eql('DUPLICATE_SUPPORTED');",
+                  "  pm.expect(body.decision.decidedBy).to.eql('SYSTEM');",
                   "});"
                 ]
               }
@@ -857,29 +953,28 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}",
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customerDisputeId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}"]
+              "path": ["api", "v1", "disputes", "{{customerDisputeId}}"]
             }
           }
         },
         {
           "name": "Get dispute timeline",
-          "description": "Business audit events in chronological order (not the Camunda history).",
+          "description": "Business audit events in chronological order (not the Camunda history). The process runs synchronously on submit and the instance id is linked afterwards, so WORKFLOW_STARTED comes last.",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 chronological timeline starting with CREATED', () => {",
+                  "pm.test('200 with the full automatic-resolution trail', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const events = pm.response.json();",
-                  "  pm.expect(events).to.be.an('array').that.is.not.empty;",
-                  "  pm.expect(events[0].eventType).to.eql('CREATED');",
-                  "  pm.expect(events[0].newStatus).to.eql('SUBMITTED');",
-                  "  const times = events.map(e => Date.parse(e.occurredAt));",
-                  "  pm.expect(times).to.eql([...times].sort((a, b) => a - b));",
+                  "  pm.expect(events.map(e => e.eventType)).to.eql(",
+                  "    ['CREATED', 'STATE_CHANGED', 'ASSESSED', 'DECIDED', 'WORKFLOW_STARTED']);",
+                  "  pm.expect(events[0].actorId).to.eql(pm.variables.get('customerUser'));",
+                  "  pm.expect(events[3].newStatus).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
                   "  events.forEach(e => pm.expect(e).to.not.have.property('correlationId'));",
                   "});"
                 ]
@@ -889,9 +984,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}/timeline",
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customerDisputeId}}/timeline",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}", "timeline"]
+              "path": ["api", "v1", "disputes", "{{customerDisputeId}}", "timeline"]
             }
           }
         },
@@ -921,7 +1016,7 @@
           }
         },
         {
-          "name": "Customer 02 reads customer 01 dispute -> 404",
+          "name": "Customer 002 reads customer 001 dispute -> 404",
           "description": "Ownership check: another customer's case returns 404 (no existence leak).",
           "event": [
             {
@@ -947,14 +1042,14 @@
             },
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}",
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customerDisputeId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}"]
+              "path": ["api", "v1", "disputes", "{{customerDisputeId}}"]
             }
           }
         },
         {
-          "name": "Customer 02 reads customer 01 timeline -> 404",
+          "name": "Customer 002 reads customer 001 timeline -> 404",
           "description": "The timeline follows the same ownership rule as the dispute detail.",
           "event": [
             {
@@ -980,9 +1075,9 @@
             },
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}/timeline",
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customerDisputeId}}/timeline",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}", "timeline"]
+              "path": ["api", "v1", "disputes", "{{customerDisputeId}}", "timeline"]
             }
           }
         },
@@ -1025,7 +1120,12 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+                "exec": [
+                  "pm.test('200 including disputes of several customers', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().totalElements).to.be.at.least(2);",
+                  "});"
+                ]
               }
             }
           ],
@@ -1040,23 +1140,31 @@
           }
         },
         {
-          "name": "List disputes awaiting analyst",
+          "name": "List disputes pending manual review",
+          "description": "MANUAL_REVIEW cases stay IN_REVIEW until the analyst flow exists (Increment 2).",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+                "exec": [
+                  "pm.test('200 with only IN_REVIEW', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const content = pm.response.json().content;",
+                  "  pm.expect(content).to.be.an('array').that.is.not.empty;",
+                  "  content.forEach(d => pm.expect(d.status).to.eql('IN_REVIEW'));",
+                  "});"
+                ]
               }
             }
           ],
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes?status=AWAITING_ANALYST",
+              "raw": "{{baseUrl}}/api/v1/disputes?status=IN_REVIEW",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes"],
-              "query": [{ "key": "status", "value": "AWAITING_ANALYST" }]
+              "query": [{ "key": "status", "value": "IN_REVIEW" }]
             }
           }
         },
@@ -1074,9 +1182,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes/{{disputeId}}",
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customerDisputeId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "disputes", "{{disputeId}}"]
+              "path": ["api", "v1", "disputes", "{{customerDisputeId}}"]
             }
           }
         },
