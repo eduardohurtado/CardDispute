@@ -864,6 +864,38 @@
           }
         },
         {
+          "name": "Get dispute timeline",
+          "description": "Business audit events in chronological order (not the Camunda history).",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 chronological timeline starting with CREATED', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const events = pm.response.json();",
+                  "  pm.expect(events).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(events[0].eventType).to.eql('CREATED');",
+                  "  pm.expect(events[0].newStatus).to.eql('SUBMITTED');",
+                  "  const times = events.map(e => Date.parse(e.occurredAt));",
+                  "  pm.expect(times).to.eql([...times].sort((a, b) => a - b));",
+                  "  events.forEach(e => pm.expect(e).to.not.have.property('correlationId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}", "timeline"]
+            }
+          }
+        },
+        {
           "name": "Unknown dispute -> 404",
           "event": [
             {
@@ -918,6 +950,39 @@
               "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes", "{{customer01DisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Customer 02 reads customer 01 timeline -> 404",
+          "description": "The timeline follows the same ownership rule as the dispute detail.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 DISPUTE_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('DISPUTE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customer2User}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{customer01DisputeId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{customer01DisputeId}}", "timeline"]
             }
           }
         },
@@ -1012,6 +1077,31 @@
               "raw": "{{baseUrl}}/api/v1/disputes/{{disputeId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes", "{{disputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get any dispute timeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 timeline starting with CREATED', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()[0].eventType).to.eql('CREATED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{disputeId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{disputeId}}", "timeline"]
             }
           }
         }
