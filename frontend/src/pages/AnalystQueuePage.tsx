@@ -31,7 +31,6 @@ export default function AnalystQueuePage() {
       page: 0,
       size: PAGE_SIZE,
     },
-    { skip: !isMockApi },
   );
 
   useEffect(() => {
@@ -57,12 +56,7 @@ export default function AnalystQueuePage() {
         onSelect={handleQueueSelect}
       />
 
-      {!isMockApi ? (
-        <StateBlock
-          title="Analyst workspace not connected"
-          description="The backend does not expose the analyst endpoints yet. Run the app with VITE_USE_MOCKS=true to explore this screen."
-        />
-      ) : isLoading ? (
+      {isLoading ? (
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <Spinner label="Loading work queue" />
           <span>Loading the work queue…</span>
@@ -81,14 +75,14 @@ export default function AnalystQueuePage() {
             Try again
           </button>
         </StateBlock>
-      ) : data?.items.length === 0 ? (
+      ) : data?.content.length === 0 ? (
         <StateBlock
           title="No tasks in this queue"
           description="Nothing needs your attention here right now."
         />
       ) : (
         <>
-          <AnalystQueueTable tasks={data?.items ?? []} />
+          <AnalystQueueTable tasks={data?.content ?? []} />
           {isFetching ? <p className="mt-2 text-xs text-gray-500">Updating…</p> : null}
         </>
       )}

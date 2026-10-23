@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techmahindra.carddispute.security.ProblemDetailsSecurityHandler;
 import com.techmahindra.carddispute.security.Role;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -40,8 +39,6 @@ public class SecurityConfig {
                                 .cors(Customizer.withDefaults())
                                 // Stateless Basic-auth API; the Camunda webapp applies its own CSRF protection
                                 .csrf(AbstractHttpConfigurer::disable)
-                                // The SPA runs on another origin in development (localhost:3000).
-                                .cors(Customizer.withDefaults())
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .httpBasic(basic -> basic.authenticationEntryPoint(problemHandler))
@@ -85,13 +82,7 @@ public class SecurityConfig {
 
                 configuration.setAllowedOrigins(origins);
 
-                configuration.setAllowedMethods(List.of(
-                                "GET",
-                                "POST",
-                                "PUT",
-                                "PATCH",
-                                "DELETE",
-                                "OPTIONS"));
+                configuration.setAllowedMethods(List.of("*"));
 
                 configuration.setAllowedHeaders(List.of(
                                 "Authorization",
@@ -112,26 +103,6 @@ public class SecurityConfig {
                                 "/api/v1/**",
                                 configuration);
 
-                return source;
-        }
-
-        /**
-         * CORS for the SPA. Only the API is exposed; the Camunda webapp keeps its own
-         * rules.
-         * Credentials are not allowed: the SPA authenticates with the Authorization
-         * header, not cookies.
-         */
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource(
-                        @Value("${application.security.cors.allowed-origins") List<String> allowedOrigins) {
-                CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(allowedOrigins);
-                configuration.setAllowedMethods(Arrays.asList("*"));
-                configuration.setAllowedHeaders(Arrays.asList("*"));
-                configuration.setMaxAge(3600L);
-
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/api/**", configuration);
                 return source;
         }
 
