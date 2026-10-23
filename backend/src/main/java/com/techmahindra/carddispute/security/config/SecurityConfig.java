@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techmahindra.carddispute.security.ProblemDetailsSecurityHandler;
 import com.techmahindra.carddispute.security.Role;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -75,7 +74,7 @@ public class SecurityConfig {
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${application.security.cors.allowed-origins") List<String> allowedOrigins) {
+            @Value("${application.security.cors.allowed-origins}") List<String> allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("*"));
@@ -90,11 +89,5 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean
-    public DemoUserDetailsService demoUserDetailsService(DemoUsersProperties properties,
-            PasswordEncoder passwordEncoder) {
-        return new DemoUserDetailsService(properties, passwordEncoder);
     }
 }
