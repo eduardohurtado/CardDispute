@@ -24,6 +24,12 @@ const phaseByStatus: Record<DisputeStatus, LifecyclePhase> = {
   REJECTED_INELIGIBLE: 'decided',
 };
 
+const finalStatuses: readonly DisputeStatus[] = [
+  'RESOLVED_DUPLICATE_SUPPORTED',
+  'RESOLVED_NOT_SUPPORTED',
+  'REJECTED_INELIGIBLE',
+];
+
 const stepDefinitions: Record<LifecyclePhase, { label: string; description: string }> = {
   submitted: {
     label: 'Submitted',
@@ -56,13 +62,14 @@ const rejectedStep = {
  */
 export function buildLifecycle(dispute: Dispute): LifecycleStepView[] {
   const currentPhase = phaseByStatus[dispute.status];
+  const isFinal = finalStatuses.includes(dispute.status);
   const currentIndex = phaseOrder.indexOf(currentPhase);
   const isException = dispute.status === 'TIMEOUT_REVIEW_REQUIRED';
   const skippedAnalystReview =
     dispute.status === 'REJECTED_INELIGIBLE' || dispute.decision?.decisionSource === 'AUTOMATED';
 
   return phaseOrder.map((phase, index) => {
-    const state = stepState({ phase, index, currentIndex, isException, skippedAnalystReview });
+    const state = stepState({ phase, index, currentIndex, isException, skippedAnalystReview, isFinal });
     const definition =
       phase === 'decided' && dispute.status === 'REJECTED_INELIGIBLE' ? rejectedStep : stepDefinitions[phase];
 
@@ -76,16 +83,20 @@ function stepState({
   currentIndex,
   isException,
   skippedAnalystReview,
+  isFinal,
 }: {
   phase: LifecyclePhase;
   index: number;
   currentIndex: number;
   isException: boolean;
   skippedAnalystReview: boolean;
+  isFinal: boolean;
 }): LifecycleStepState {
   if (isException && phase === 'analystReview') return 'exception';
   if (phase === 'analystReview' && skippedAnalystReview && index < currentIndex) return 'skipped';
   if (index < currentIndex) return 'done';
-  if (index === currentIndex) return 'current';
+  if (index === currentIndex) {
+    return isFinal ? 'done' : 'current';
+  }
   return 'pending';
 }
