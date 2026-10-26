@@ -50,7 +50,7 @@ public class DisputeService {
      * Validates ownership and eligibility and records the case as SUBMITTED. Invalid submissions are
      * rejected with an HTTP error and create no dispute.
      */
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public DisputeResponse submit(AuthenticatedUser customer, CreateDisputeRequest request, String correlationId) {
         UUID customerId = customer.requireCustomerId();
         Instant now = clock.instant();
@@ -82,7 +82,7 @@ public class DisputeService {
         return toResponse(dispute, transaction, candidate);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public PageResponse<DisputeSummaryResponse> list(AuthenticatedUser user, DisputeStatus status, Pageable pageable) {
         Page<DisputeCase> page;
         if (user.isAnalyst()) {
@@ -104,7 +104,7 @@ public class DisputeService {
         });
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public DisputeResponse get(AuthenticatedUser user, UUID disputeId) {
         DisputeCase dispute = findAuthorized(user, disputeId);
         Map<UUID, CardTransaction> transactions = transactionsById(

@@ -28,7 +28,7 @@ public class TransactionService {
     private final CardTransactionRepository transactionRepository;
     private final DisputeRulesProperties rules;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public PageResponse<TransactionResponse> listOwned(UUID customerId, TransactionStatus status, Pageable pageable) {
         Page<CardTransaction> page = status == null
                 ? transactionRepository.findByCustomerId(customerId, pageable)
@@ -36,32 +36,32 @@ public class TransactionService {
         return PageResponse.of(page, TransactionResponse::from);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public TransactionResponse getOwnedResponse(UUID customerId, UUID transactionId) {
         return TransactionResponse.from(getOwned(customerId, transactionId));
     }
 
     /** Returns the transaction only if it belongs to the customer; otherwise 404 (no existence leak). */
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public CardTransaction getOwned(UUID customerId, UUID transactionId) {
         return findOwned(customerId, transactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSACTION_NOT_FOUND",
                         "Transaction " + transactionId + " was not found"));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public Optional<CardTransaction> findOwned(UUID customerId, UUID transactionId) {
         return transactionRepository.findByTransactionIdAndCustomerId(transactionId, customerId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public CardTransaction getById(UUID transactionId) {
         return transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSACTION_NOT_FOUND",
                         "Transaction " + transactionId + " was not found"));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public List<CardTransaction> findAllById(Collection<UUID> transactionIds) {
         return transactionRepository.findAllById(transactionIds);
     }

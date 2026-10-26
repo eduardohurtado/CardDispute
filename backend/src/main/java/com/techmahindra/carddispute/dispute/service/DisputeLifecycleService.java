@@ -42,7 +42,7 @@ public class DisputeLifecycleService {
     private final Clock clock;
 
     /** SUBMITTED -> IN_REVIEW. */
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public void markInReview(UUID disputeId, String correlationId) {
         DisputeCase dispute = load(disputeId);
         if (dispute.getStatus() == DisputeStatus.IN_REVIEW) {
@@ -52,7 +52,7 @@ public class DisputeLifecycleService {
     }
 
     /** Runs the synthetic matching rules and stores the outcome used by the BPMN gateway. */
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public AssessmentOutcome assess(UUID disputeId, String correlationId) {
         DisputeCase dispute = load(disputeId);
         requireStatus(dispute, DisputeStatus.IN_REVIEW);
@@ -69,7 +69,7 @@ public class DisputeLifecycleService {
     }
 
     /** IN_REVIEW -> RESOLVED_* for SUPPORTED / NOT_SUPPORTED outcomes, with an AUTOMATED decision. */
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public void resolveAutomatically(UUID disputeId, String correlationId) {
         DisputeCase dispute = load(disputeId);
         if (dispute.getStatus().isTerminal() && decisionRepository.findByDisputeId(disputeId).isPresent()) {
@@ -105,7 +105,7 @@ public class DisputeLifecycleService {
     }
 
     /** IN_REVIEW -> AWAITING_ANALYST for MANUAL_REVIEW outcomes. */
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public void markAwaitingAnalyst(UUID disputeId, String correlationId) {
         DisputeCase dispute = load(disputeId);
         if (dispute.getStatus() == DisputeStatus.AWAITING_ANALYST) {
