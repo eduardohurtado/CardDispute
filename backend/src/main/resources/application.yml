@@ -54,13 +54,15 @@ application:
     liquibase-schema: card_dispute_liquibase_schema
     # Empty = run everything (db-init + demo-seed). Set to "db-init" to skip synthetic data.
     contexts: ${CARD_DISPUTE_LIQUIBASE_CONTEXTS:}
-
+  cors:
+    allowed-origins: ${CARD_DISPUTE_CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
   # Synthetic POC rules
   dispute:
     rules:
       eligibility-window: P60D
       duplicate-match-window: PT1H
       review-match-window: PT24H
+      manual-review-timeout: ${CARD_DISPUTE_MANUAL_REVIEW_TIMEOUT:PT48H}
       high-value-thresholds:
         COP: 2000000
         USD: 500

@@ -25,14 +25,14 @@ public class DisputeAuditService {
 
     private final DisputeAuditEventRepository auditRepository;
 
-    @Transactional
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
     public void record(UUID disputeId, AuditEventType eventType, DisputeStatus oldStatus, DisputeStatus newStatus,
                        String actorId, String correlationId, String details, Instant occurredAt) {
         auditRepository.save(DisputeAuditEvent.of(disputeId, eventType, oldStatus, newStatus, actorId,
                 correlationId, truncate(details), occurredAt));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
     public List<TimelineEntryResponse> timeline(UUID disputeId) {
         return auditRepository.findByDisputeIdOrderByOccurredAtAscAuditIdAsc(disputeId).stream()
                 .map(TimelineEntryResponse::from)

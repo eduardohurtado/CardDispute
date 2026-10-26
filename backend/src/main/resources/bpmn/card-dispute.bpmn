@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_CardDispute" targetNamespace="http://techmahindra.com/card-dispute/bpmn" exporter="Camunda Modeler" exporterVersion="5.52.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.24.0">
   <bpmn:process id="card-dispute-process" name="Card Dispute - Automatic Decision" isExecutable="true">
     <bpmn:startEvent id="Start_DisputeSubmitted" name="Dispute submitted">
@@ -26,89 +26,138 @@
     <bpmn:endEvent id="End_AutomaticDecision" name="Automatic decision complete">
       <bpmn:incoming>Flow_ResolutionEnd</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="End_ManualReviewDeferred" name="Manual review deferred (Increment 2)">
+    <bpmn:userTask id="Task_ManualReview" name="Review disputed transaction" camunda:candidateGroups="DISPUTE_ANALYST">
       <bpmn:incoming>Flow_ManualReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManualReviewToEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="Boundary_ManualReviewDeadline" name="Review deadline reached" cancelActivity="false" attachedToRef="Task_ManualReview">
+      <bpmn:outgoing>Flow_DeadlineToMarkOverdue</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_ManualReviewDeadline">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">${reviewTimerDuration}</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_MarkManualReviewOverdue" name="Mark review overdue" camunda:delegateExpression="${markManualReviewOverdueDelegate}">
+      <bpmn:incoming>Flow_DeadlineToMarkOverdue</bpmn:incoming>
+      <bpmn:outgoing>Flow_MarkOverdueToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_ManualReviewDeadline" name="Deadline recorded">
+      <bpmn:incoming>Flow_MarkOverdueToEnd</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_StartReview" sourceRef="Start_DisputeSubmitted" targetRef="Task_MarkInReview" />
-    <bpmn:sequenceFlow id="Flow_ReviewAssess" sourceRef="Task_MarkInReview" targetRef="Task_AssessDispute" />
-    <bpmn:sequenceFlow id="Flow_AssessGateway" sourceRef="Task_AssessDispute" targetRef="Gateway_AssessmentOutcome" />
+    <bpmn:sequenceFlow id="Flow_DeadlineToMarkOverdue" sourceRef="Boundary_ManualReviewDeadline" targetRef="Task_MarkManualReviewOverdue"/>
+    <bpmn:sequenceFlow id="Flow_MarkOverdueToEnd" sourceRef="Task_MarkManualReviewOverdue" targetRef="End_ManualReviewDeadline"/>
+    <bpmn:serviceTask id="Task_ResolveManualReview" name="Persist manual resolution" camunda:delegateExpression="${resolveManualReviewDelegate}" camunda:asyncBefore="true"><bpmn:incoming>Flow_ManualReviewToEnd</bpmn:incoming><bpmn:outgoing>Flow_ManualResolutionEnd</bpmn:outgoing></bpmn:serviceTask><bpmn:endEvent id="End_ManualReviewDeferred" name="Manual review completed">
+      <bpmn:incoming>Flow_ManualResolutionEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_StartReview" sourceRef="Start_DisputeSubmitted" targetRef="Task_MarkInReview"/>
+    <bpmn:sequenceFlow id="Flow_ReviewAssess" sourceRef="Task_MarkInReview" targetRef="Task_AssessDispute"/>
+    <bpmn:sequenceFlow id="Flow_AssessGateway" sourceRef="Task_AssessDispute" targetRef="Gateway_AssessmentOutcome"/>
     <bpmn:sequenceFlow id="Flow_Supported" sourceRef="Gateway_AssessmentOutcome" targetRef="Task_PersistResolution">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${assessmentOutcome == 'SUPPORTED'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_NotSupported" sourceRef="Gateway_AssessmentOutcome" targetRef="Task_PersistResolution">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${assessmentOutcome == 'NOT_SUPPORTED'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_ManualReview" sourceRef="Gateway_AssessmentOutcome" targetRef="End_ManualReviewDeferred">
+    <bpmn:sequenceFlow id="Flow_ManualReview" sourceRef="Gateway_AssessmentOutcome" targetRef="Task_ManualReview">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${assessmentOutcome == 'MANUAL_REVIEW'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_ResolutionEnd" sourceRef="Task_PersistResolution" targetRef="End_AutomaticDecision" />
+    <bpmn:sequenceFlow id="Flow_ManualReviewToEnd" sourceRef="Task_ManualReview" targetRef="Task_ResolveManualReview"/>
+    <bpmn:sequenceFlow id="Flow_ManualResolutionEnd" sourceRef="Task_ResolveManualReview" targetRef="End_ManualReviewDeferred"/><bpmn:sequenceFlow id="Flow_ResolutionEnd" sourceRef="Task_PersistResolution" targetRef="End_AutomaticDecision"/>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_CardDispute">
     <bpmndi:BPMNPlane id="BPMNPlane_CardDispute" bpmnElement="card-dispute-process">
+      <bpmndi:BPMNShape id="Start_DisputeSubmitted_di" bpmnElement="Start_DisputeSubmitted">
+        <dc:Bounds x="182" y="160" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="156" y="196" width="89" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_MarkInReview_di" bpmnElement="Task_MarkInReview">
+        <dc:Bounds x="330" y="130" width="120" height="96"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AssessDispute_di" bpmnElement="Task_AssessDispute">
+        <dc:Bounds x="555" y="130" width="120" height="96"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AssessmentOutcome_di" bpmnElement="Gateway_AssessmentOutcome" isMarkerVisible="true">
+        <dc:Bounds x="775" y="150" width="50" height="50"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="164" width="60" height="27"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_PersistResolution_di" bpmnElement="Task_PersistResolution">
-        <dc:Bounds x="970" y="125" width="120" height="96" />
+        <dc:Bounds x="970" y="125" width="120" height="96"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ManualReview_di" bpmnElement="Task_ManualReview">
+        <dc:Bounds x="960" y="305" width="120" height="96"/>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_AutomaticDecision_di" bpmnElement="End_AutomaticDecision">
-        <dc:Bounds x="1170" y="155" width="36" height="36" />
+        <dc:Bounds x="1342" y="155" width="36" height="36"/>
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1144" y="191" width="89" height="27" />
+          <dc:Bounds x="1316" y="191" width="89" height="27"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="End_ManualReviewDeferred_di" bpmnElement="End_ManualReviewDeferred">
-        <dc:Bounds x="1170" y="335" width="36" height="36" />
+        <dc:Bounds x="1342" y="335" width="36" height="36"/>
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1153" y="371" width="71" height="40" />
+          <dc:Bounds x="1325" y="371" width="71" height="27"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_AssessDispute_di" bpmnElement="Task_AssessDispute">
-        <dc:Bounds x="555" y="130" width="120" height="96" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_MarkInReview_di" bpmnElement="Task_MarkInReview">
-        <dc:Bounds x="330" y="130" width="120" height="96" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Start_DisputeSubmitted_di" bpmnElement="Start_DisputeSubmitted">
-        <dc:Bounds x="182" y="160" width="36" height="36" />
+      <bpmndi:BPMNShape id="End_ManualReviewDeadline_di" bpmnElement="End_ManualReviewDeadline">
+        <dc:Bounds x="1342" y="497" width="36" height="36"/>
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="156" y="196" width="89" height="14" />
+          <dc:Bounds x="1315" y="533" width="90" height="14"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_AssessmentOutcome_di" bpmnElement="Gateway_AssessmentOutcome" isMarkerVisible="true">
-        <dc:Bounds x="775" y="150" width="50" height="50" />
+      <bpmndi:BPMNShape id="Task_MarkManualReviewOverdue_di" bpmnElement="Task_MarkManualReviewOverdue">
+        <dc:Bounds x="1137" y="475" width="125" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_ManualReviewDeadline_di" bpmnElement="Boundary_ManualReviewDeadline" isMarkerVisible="false">
+        <dc:Bounds x="942" y="383" width="36" height="36"/>
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="850" y="164" width="60" height="27" />
+          <dc:Bounds x="850.5" y="387" width="81" height="27"/>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_DeadlineToMarkOverdue_di" bpmnElement="Flow_DeadlineToMarkOverdue">
+        <di:waypoint x="960" y="419"/>
+        <di:waypoint x="960" y="515"/>
+        <di:waypoint x="1137" y="515"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_MarkOverdueToEnd_di" bpmnElement="Flow_MarkOverdueToEnd">
+        <di:waypoint x="1262" y="515"/>
+        <di:waypoint x="1342" y="515"/>
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_StartReview_di" bpmnElement="Flow_StartReview">
-        <di:waypoint x="218" y="178" />
-        <di:waypoint x="330" y="178" />
+        <di:waypoint x="218" y="178"/>
+        <di:waypoint x="330" y="178"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ReviewAssess_di" bpmnElement="Flow_ReviewAssess">
-        <di:waypoint x="450" y="178" />
-        <di:waypoint x="555" y="178" />
+        <di:waypoint x="450" y="178"/>
+        <di:waypoint x="555" y="178"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AssessGateway_di" bpmnElement="Flow_AssessGateway">
-        <di:waypoint x="675" y="176" />
-        <di:waypoint x="776" y="176" />
+        <di:waypoint x="675" y="176"/>
+        <di:waypoint x="776" y="176"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Supported_di" bpmnElement="Flow_Supported">
-        <di:waypoint x="825" y="175" />
-        <di:waypoint x="970" y="175" />
+        <di:waypoint x="825" y="175"/>
+        <di:waypoint x="970" y="175"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NotSupported_di" bpmnElement="Flow_NotSupported">
-        <di:waypoint x="800" y="150" />
-        <di:waypoint x="800" y="60" />
-        <di:waypoint x="1030" y="60" />
-        <di:waypoint x="1030" y="125" />
+        <di:waypoint x="800" y="150"/>
+        <di:waypoint x="800" y="60"/>
+        <di:waypoint x="1030" y="60"/>
+        <di:waypoint x="1030" y="125"/>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ManualReview_di" bpmnElement="Flow_ManualReview">
-        <di:waypoint x="800" y="200" />
-        <di:waypoint x="800" y="353" />
-        <di:waypoint x="1170" y="353" />
+        <di:waypoint x="800" y="200"/>
+        <di:waypoint x="800" y="353"/>
+        <di:waypoint x="960" y="353"/>
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ManualReviewToEnd_di" bpmnElement="Flow_ManualReviewToEnd">
+        <di:waypoint x="1080" y="353"/><di:waypoint x="1150" y="353"/></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ResolutionEnd_di" bpmnElement="Flow_ResolutionEnd">
-        <di:waypoint x="1090" y="173" />
-        <di:waypoint x="1170" y="173" />
+        <di:waypoint x="1090" y="173"/>
+        <di:waypoint x="1342" y="173"/>
       </bpmndi:BPMNEdge>
-    </bpmndi:BPMNPlane>
+    <bpmndi:BPMNShape id="Task_ResolveManualReview_di" bpmnElement="Task_ResolveManualReview"><dc:Bounds x="1150" y="305" width="120" height="96"/></bpmndi:BPMNShape><bpmndi:BPMNEdge id="Flow_ManualResolutionEnd_di" bpmnElement="Flow_ManualResolutionEnd"><di:waypoint x="1270" y="353"/><di:waypoint x="1342" y="353"/></bpmndi:BPMNEdge></bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

@@ -2,21 +2,26 @@ package com.techmahindra.carddispute.dispute.controller;
 
 import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
 import com.techmahindra.carddispute.common.exception.ConflictException;
+import com.techmahindra.carddispute.dispute.security.config.TestAuthenticationConfig;
 import com.techmahindra.carddispute.security.AuthenticatedUser;
+import com.techmahindra.carddispute.security.Role;
 import com.techmahindra.carddispute.security.config.SecurityConfig;
 import com.techmahindra.carddispute.dispute.controller.impl.DisputeControllerImpl;
 import com.techmahindra.carddispute.dispute.dto.DisputeResponse;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.entity.ReasonCode;
 import com.techmahindra.carddispute.dispute.service.DisputeService;
+import com.techmahindra.carddispute.security.service.DatabaseUserDetailsService;
 import com.techmahindra.carddispute.transaction.dto.TransactionResponse;
 import com.techmahindra.carddispute.transaction.entity.TransactionStatus;
 import com.techmahindra.carddispute.workflow.service.WorkflowService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -40,7 +45,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.ArgumentMatchers.eq;
 
 @WebMvcTest(DisputeControllerImpl.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, TestAuthenticationConfig.class})
 class DisputeControllerImplTest {
 
     private static final String TRANSACTION_ID = "aaaaaaaa-0000-0000-0000-000000000001";
@@ -53,11 +58,39 @@ class DisputeControllerImplTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @MockitoBean
     private DisputeService disputeService;
 
     @MockitoBean
     private WorkflowService workflowService;
+
+    @MockitoBean
+    private DatabaseUserDetailsService databaseUserDetailsService;
+
+    @BeforeEach
+    void setUp() {
+
+        when(databaseUserDetailsService.loadUserByUsername("customer001"))
+                .thenReturn(new AuthenticatedUser(
+                        "customer001",
+                        passwordEncoder.encode("demo"),
+                        Role.CUSTOMER,
+                        UUID.fromString(
+                                "11111111-1111-1111-1111-000000000001"
+                        )
+                ));
+
+        when(databaseUserDetailsService.loadUserByUsername("analyst001"))
+                .thenReturn(new AuthenticatedUser(
+                        "analyst001",
+                        passwordEncoder.encode("demo"),
+                        Role.DISPUTE_ANALYST,
+                        null
+                ));
+    }
 
     @Test
     void requiresAuthentication() throws Exception {
@@ -76,7 +109,7 @@ class DisputeControllerImplTest {
         when(workflowService.startDisputeProcess(eq(disputeId),anyString())).thenReturn(processInstanceId);
         when(disputeService.get(any(AuthenticatedUser.class),eq(disputeId))).thenReturn(response(disputeId));
 
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "http://localhost/api/v1/disputes/" + disputeId))
@@ -92,7 +125,7 @@ class DisputeControllerImplTest {
 
     @Test
     void analystCannotSubmitDispute() throws Exception {
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("analyst01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("analyst001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
@@ -100,7 +133,7 @@ class DisputeControllerImplTest {
 
     @Test
     void invalidPayloadIsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reasonCode\":\"POSSIBLE_DUPLICATE\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
@@ -110,7 +143,7 @@ class DisputeControllerImplTest {
 
     @Test
     void candidateTransactionIsRequired() throws Exception {
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"transactionId\":\"%s\",\"reasonCode\":\"POSSIBLE_DUPLICATE\"}"
                                 .formatted(TRANSACTION_ID)))
@@ -123,7 +156,7 @@ class DisputeControllerImplTest {
         when(disputeService.submit(any(), any(), anyString()))
                 .thenThrow(new BusinessRuleViolationException("TRANSACTION_NOT_POSTED", "Only posted"));
 
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -138,7 +171,7 @@ class DisputeControllerImplTest {
         when(disputeService.submit(any(), any(), anyString()))
                 .thenThrow(new ConflictException("OPEN_DISPUTE_EXISTS", "Already open"));
 
-        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer01", "demo"))
+        mockMvc.perform(post("/api/v1/disputes").with(httpBasic("customer001", "demo"))
                         .contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("OPEN_DISPUTE_EXISTS"));
@@ -149,7 +182,7 @@ class DisputeControllerImplTest {
 
     @Test
     void wrongPasswordIsUnauthorized() throws Exception {
-        mockMvc.perform(get("/api/v1/disputes").with(httpBasic("customer01", "wrong")))
+        mockMvc.perform(get("/api/v1/disputes").with(httpBasic("customer001", "wrong")))
                 .andExpect(status().isUnauthorized());
     }
 
