@@ -26,6 +26,17 @@ camunda:
       properties:
         history-time-to-live: P1D
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Local POC: only the health endpoint is published (no env, beans, metrics, ...)
+        include: health
+  endpoint:
+    health:
+      # Public endpoint: overall UP/DOWN only, no component details
+      show-details: never
+
 logging:
   level:
     org.camunda.bpm.engine: info
