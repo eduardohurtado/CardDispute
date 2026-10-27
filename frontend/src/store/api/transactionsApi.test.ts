@@ -20,7 +20,7 @@ describe('transactionsApi', () => {
 
   it('scopes the list to the demo user', async () => {
     const store = makeStore(undefined, { refetchOnFocus: false });
-    const u = findDemoUser('customer02')!;
+    const u = findDemoUser('customer002')!;
     store.dispatch(signedIn({
       username: u.username,
       password: DEMO_PASSWORD,

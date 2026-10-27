@@ -35,7 +35,7 @@ describe('DemoUserPicker', () => {
   it('shows the current demo user', async () => {
     renderWithProviders({ route: '/' });
 
-    expect(await screen.findByLabelText('Demo user')).toHaveValue('customer01');
+    expect(await screen.findByLabelText('Demo user')).toHaveValue('customer001');
   });
 
   it('asks for confirmation before switching', async () => {
@@ -45,8 +45,8 @@ describe('DemoUserPicker', () => {
 
     expect(dialog).toHaveTextContent('everything from this session is cleared');
     // Nothing changes until the switch is confirmed.
-    expect(screen.getByLabelText('Demo user')).toHaveValue('customer01');
-    expect(selectSession(store.getState()).username).toBe('customer01');
+    expect(screen.getByLabelText('Demo user')).toHaveValue('customer001');
+    expect(selectSession(store.getState()).username).toBe('customer001');
   });
 
   it('keeps everything as it was on Cancel', async () => {
@@ -57,8 +57,8 @@ describe('DemoUserPicker', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe(CASE_ROUTE);
-    expect(selectSession(store.getState()).username).toBe('customer01');
-    expect(screen.getByLabelText('Demo user')).toHaveValue('customer01');
+    expect(selectSession(store.getState()).username).toBe('customer001');
+    expect(screen.getByLabelText('Demo user')).toHaveValue('customer001');
     expect(selectToasts(store.getState()).map((toast) => toast.message)).toEqual(['Old notification']);
   });
 
@@ -74,17 +74,18 @@ describe('DemoUserPicker', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     const state = store.getState();
-    expect(selectSession(state).username).toBe('customer02');
-    expect(screen.getByLabelText('Demo user')).toHaveValue('customer02');
+    expect(selectSession(state).username).toBe('customer002');
+    expect(screen.getByLabelText('Demo user')).toHaveValue('customer002');
     expect(selectIsSidebarOpen(state)).toBe(true);
     expect(selectToasts(state).map((toast) => toast.message)).toEqual(['Now using Demo Customer 02']);
-    expect(screen.getByRole('status')).toHaveTextContent('Now using Demo Customer 02');
+    expect(screen.getAllByRole('status').find(e => e.textContent?.includes('Now using'))!).toHaveTextContent('Now using Demo Customer 02');
     // The theme is a device setting, not part of the user's session.
     expect(selectThemePreference(state)).toBe('dark');
   });
 
   it('navigates an analyst to the analyst queue after switching', async () => {
     const { router } = renderWithProviders({ route: '/' });
+    await screen.findByLabelText('Demo user');
 
     await pickUser('Analyst 01');
     await userEvent.click(screen.getByRole('button', { name: 'Switch user' }));
@@ -101,7 +102,7 @@ describe('DemoUserPicker', () => {
     await screen.findByRole('heading', { name: 'My Disputes' });
     await userEvent.click(screen.getByRole('link', { name: 'Report a charge' }));
 
-    // customer02 owns a single charge in the mock data, so nothing can be disputed.
+    // customer002 owns a single charge in the mock data, so nothing can be disputed.
     expect(await screen.findByText('No posted charges to dispute')).toBeInTheDocument();
   });
 });

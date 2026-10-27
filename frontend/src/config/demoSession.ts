@@ -50,8 +50,8 @@ export const DEMO_ACCOUNTS: Record<string, DemoAccount> = {
     role: 'CUSTOMER',
     customerId: DEMO_CUSTOMER_02_ID,
   },
-  analyst01: {
-    username: 'analyst01',
+  analyst001: {
+    username: 'analyst001',
     displayName: 'Analyst 01',
     role: 'DISPUTE_ANALYST',
   },

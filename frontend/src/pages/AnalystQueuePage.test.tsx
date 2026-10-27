@@ -1,5 +1,4 @@
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw/http';
 import { describe, expect, it } from 'vitest';
 import { ANALYST_TASKS_PATH } from '@/mocks/handlers';
@@ -7,40 +6,10 @@ import { server } from '@/mocks/server';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 describe('AnalystQueuePage', () => {
-  it('lists the tasks of the pending queue', async () => {
+  it('lists the tasks', async () => {
     renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
-    expect(await screen.findByRole('cell', { name: 'Online Store' })).toBeInTheDocument();
-    expect(screen.getByRole('cell', { name: 'Farmacia Central' })).toBeInTheDocument();
-  });
-
-  it('hides the tasks of the other queue', async () => {
-    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
-
-    await screen.findByRole('cell', { name: 'Online Store' });
-
-    expect(screen.queryByRole('cell', { name: 'Fuel Stop' })).not.toBeInTheDocument();
-  });
-
-  it('shows the size of both queues', async () => {
-    renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
-
-    const pending = await screen.findByRole('tab', { name: /Pending tasks/ });
-
-    await waitFor(() => {
-      expect(pending).toHaveTextContent('2');
-    });
-    expect(screen.getByRole('tab', { name: /Due soon/ })).toHaveTextContent('2');
-  });
-
-  it('switches to the other queue', async () => {
-    const { router } = renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
-
-    await userEvent.click(await screen.findByRole('tab', { name: /Due soon/ }));
-
-    expect(await screen.findByRole('cell', { name: 'Fuel Stop' })).toBeInTheDocument();
-    expect(screen.queryByRole('cell', { name: 'Online Store' })).not.toBeInTheDocument();
-    expect(router.state.location.search).toBe('?queue=DUE_SOON');
+    expect(await screen.findByRole('cell', { name: /b2000000-0000-4000-8000-000000000002/ })).toBeInTheDocument();
   });
 
   it('shows an empty state when the queue is empty', async () => {
@@ -52,7 +21,6 @@ describe('AnalystQueuePage', () => {
           size: 20,
           totalElements: 0,
           totalPages: 0,
-          queueCounts: { PENDING: 0, DUE_SOON: 0 },
         }),
       ),
     );

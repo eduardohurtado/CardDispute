@@ -25,7 +25,7 @@ export default function AnalystReviewPage() {
     isError,
     error,
     refetch,
-  } = useGetAnalystTaskQuery(taskId ?? '', { skip: !taskId || !isMockApi });
+  } = useGetAnalystTaskQuery(taskId ?? '', { skip: !taskId });
 
   useEffect(() => {
     if (isError) {
@@ -43,15 +43,7 @@ export default function AnalystReviewPage() {
   }
 
   if (!isMockApi) {
-    return (
-      <section className="space-y-4">
-        <BackLink />
-        <StateBlock
-          title="Analyst workspace not connected"
-          description="The backend does not expose the analyst endpoints yet. Run the app with VITE_USE_MOCKS=true to explore this screen."
-        />
-      </section>
-    );
+    // allow if backend exposed
   }
 
   if (isLoading) {
@@ -99,9 +91,8 @@ export default function AnalystReviewPage() {
           </span>
         </h1>
         <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge status={task.status} />
-          <Badge tone={matchKindMeta[task.matchKind].tone}>
-            {matchKindMeta[task.matchKind].label}
+          <Badge tone={task.overdue ? 'danger' : 'neutral'}>
+            {task.overdue ? 'Overdue' : 'On time'}
           </Badge>
         </div>
       </header>
@@ -109,9 +100,14 @@ export default function AnalystReviewPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="task-evidence-heading" className="space-y-3">
           <h2 id="task-evidence-heading" className="text-lg font-semibold text-gray-900">
-            Evidence
+            Task
           </h2>
-          <AnalystEvidence task={task} />
+          <div className="rounded-md border border-gray-200 p-4 text-sm">
+            <div><span className="font-medium">Task ID:</span> {task.taskId}</div>
+            <div><span className="font-medium">Task name:</span> {task.taskName}</div>
+            <div><span className="font-medium">Assignee:</span> {task.assignee ?? '-'}</div>
+            <div><span className="font-medium">Created:</span> {task.createdAt}</div>
+          </div>
         </section>
 
         <section aria-labelledby="task-decision-heading" className="space-y-3">
@@ -121,13 +117,6 @@ export default function AnalystReviewPage() {
           <AnalystDecisionPanel task={task} />
         </section>
       </div>
-
-      <section aria-labelledby="task-history-heading" className="space-y-3">
-        <h2 id="task-history-heading" className="text-lg font-semibold text-gray-900">
-          History
-        </h2>
-        <DisputeTimeline events={task.timeline} />
-      </section>
     </section>
   );
 }

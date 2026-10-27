@@ -110,10 +110,4 @@ public class SecurityConfig {
         public PasswordEncoder passwordEncoder() {
                 return PasswordEncoderFactories.createDelegatingPasswordEncoder();
         }
-
-        @Bean
-        public DemoUserDetailsService demoUserDetailsService(DemoUsersProperties properties,
-                        PasswordEncoder passwordEncoder) {
-                return new DemoUserDetailsService(properties, passwordEncoder);
-        }
 }

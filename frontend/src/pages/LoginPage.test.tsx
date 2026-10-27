@@ -22,7 +22,7 @@ describe('LoginPage', () => {
   it('signs an analyst in and opens the work queue', async () => {
     const { router } = renderWithProviders({ route: '/login', authenticated: false });
 
-    await signIn('analyst01', 'demo');
+    await signIn('analyst001', 'demo');
 
     expect(await screen.findByRole('heading', { name: 'Analyst workspace' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/analyst');

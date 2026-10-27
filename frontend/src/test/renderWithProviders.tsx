@@ -19,13 +19,13 @@ interface Options {
 const demoSession = (role: DemoRole): AuthSession =>
   role === 'DISPUTE_ANALYST'
     ? {
-        username: 'analyst01',
+        username: 'analyst001',
         password: 'demo',
         displayName: 'Analyst 01',
         role,
       }
     : {
-        username: 'customer01',
+        username: 'customer001',
         password: 'demo',
         displayName: 'Demo Customer 01',
         role: 'CUSTOMER',
