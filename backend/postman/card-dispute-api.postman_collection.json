@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Card Dispute POC API",
-    "description": "Increment 1 endpoints of the Card Dispute POC backend (synthetic data only).\n\nAuth: HTTP Basic with the seeded demo users (customer001..customer100 and analyst001, password `demo`). The collection uses customer001 by default; folders override it where needed.\n\nTransaction ids follow the seed formula `d0020000-0000-4000-8000-{pairIndex*10 + side}` (12 digits), where side 1 is the disputed charge and side 2 its suspected duplicate. For customer001, pair N uses scenario N-1 of `003-Demo-seed.sql`.\n\nThe Camunda process runs synchronously on submit: SUPPORTED / NOT_SUPPORTED cases come back resolved, MANUAL_REVIEW cases stay IN_REVIEW (analyst review is Increment 2).\n\nEvery request gets a random `X-Correlation-Id` header (collection pre-request script).\n\nRun the folders in order on a fresh seed. Re-running '02 - Submit scenarios' returns 409 for the MANUAL_REVIEW cases, because those disputes are still open.",
+    "description": "Increment 1 and 2 endpoints of the Card Dispute POC backend (synthetic data only).\n\nAuth: HTTP Basic with the seeded demo users (customer001..customer100 and analyst001, password `demo`). The collection uses customer001 by default; folders override it where needed.\n\nTransaction ids follow the seed formula `d0020000-0000-4000-8000-{pairIndex*10 + side}` (12 digits), where side 1 is the disputed charge and side 2 its suspected duplicate. For customer001, pair N uses scenario N-1 of `003-Demo-seed.sql`.\n\nThe Camunda process runs synchronously on submit: SUPPORTED / NOT_SUPPORTED cases come back resolved, MANUAL_REVIEW cases come back AWAITING_ANALYST with an open analyst task (folder 06 decides them). If nobody decides within the review deadline (default PT5M, `CARD_DISPUTE_MANUAL_REVIEW_TIMEOUT`), the dispute becomes TIMEOUT_REVIEW_REQUIRED and the task stays open (folder 07).\n\nEvery request gets a random `X-Correlation-Id` header (collection pre-request script).\n\nRun folders 00-06 in order on a fresh seed, then run folder 07 after the review deadline has passed. Re-running '02 - Submit scenarios' returns 409 for the MANUAL_REVIEW cases that are still open.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -29,12 +29,47 @@
     { "key": "analystUser", "value": "analyst001" },
     { "key": "password", "value": "demo" },
     { "key": "disputeId", "value": "", "description": "Last dispute created by any submission" },
-    { "key": "customerDisputeId", "value": "", "description": "Dispute created by 'P01' (customer001, automatically resolved)" }
+    { "key": "customerDisputeId", "value": "", "description": "Dispute created by 'P01' (customer001, automatically resolved)" },
+    { "key": "manualDisputeId", "value": "", "description": "Dispute created by 'P03' (MANUAL_REVIEW), decided as DUPLICATE_SUPPORTED in folder 06" },
+    { "key": "manualDispute2Id", "value": "", "description": "Dispute created by 'P04' (MANUAL_REVIEW), decided as NOT_SUPPORTED in folder 06" },
+    { "key": "timeoutDisputeId", "value": "", "description": "Dispute created by 'P06' (MANUAL_REVIEW), left open for the timeout check in folder 07" },
+    { "key": "manualTaskId", "value": "", "description": "Analyst task of manualDisputeId" },
+    { "key": "manualTask2Id", "value": "", "description": "Analyst task of manualDispute2Id" },
+    { "key": "timeoutTaskId", "value": "", "description": "Analyst task of timeoutDisputeId" }
   ],
   "item": [
     {
-      "name": "00 - Auth checks",
+      "name": "00 - Health and auth checks",
       "item": [
+        {
+          "name": "Health (public) -> 200 UP",
+          "description": "Public, no credentials. Only the overall status is returned (show-details: never); 503 when the database or the Camunda engine is down.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 UP without component details', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('UP');",
+                  "  pm.expect(body).to.not.have.property('components');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "health"]
+            }
+          }
+        },
         {
           "name": "No credentials -> 401",
           "event": [
@@ -320,7 +355,20 @@
           }
         },
         {
-          "name": "P03 High value COP 3,500,000 -> MANUAL_REVIEW / IN_REVIEW",
+          "name": "P03 High value COP 3,500,000 -> MANUAL_REVIEW / AWAITING_ANALYST",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('manualDisputeId', pm.response.json().disputeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -337,7 +385,20 @@
           }
         },
         {
-          "name": "P04 Same merchant, 3 h apart -> MANUAL_REVIEW / IN_REVIEW",
+          "name": "P04 Same merchant, 3 h apart -> MANUAL_REVIEW / AWAITING_ANALYST",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('manualDispute2Id', pm.response.json().disputeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -371,7 +432,20 @@
           }
         },
         {
-          "name": "P06 Same reference, different amount -> MANUAL_REVIEW / IN_REVIEW",
+          "name": "P06 Same reference, different amount -> MANUAL_REVIEW / AWAITING_ANALYST",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('timeoutDisputeId', pm.response.json().disputeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -388,7 +462,7 @@
           }
         },
         {
-          "name": "P07 Fuel Stop vs Fuel Stop North -> MANUAL_REVIEW / IN_REVIEW",
+          "name": "P07 Fuel Stop vs Fuel Stop North -> MANUAL_REVIEW / AWAITING_ANALYST",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -473,7 +547,7 @@
           }
         },
         {
-          "name": "P14 USD 800, same reference + high value -> MANUAL_REVIEW / IN_REVIEW",
+          "name": "P14 USD 800, same reference + high value -> MANUAL_REVIEW / AWAITING_ANALYST",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -517,7 +591,7 @@
     },
     {
       "name": "03 - Submit errors (customer)",
-      "description": "Rejected submissions: no dispute is created. Run after '02 - Submit scenarios' so the 409 requests find the open P03 dispute (MANUAL_REVIEW stays IN_REVIEW).",
+      "description": "Rejected submissions: no dispute is created. Run after '02 - Submit scenarios' so the 409 requests find the open P03 dispute (MANUAL_REVIEW disputes stay open as AWAITING_ANALYST until folder 06 decides them).",
       "item": [
         {
           "name": "Missing candidate -> 400",
@@ -1141,18 +1215,18 @@
         },
         {
           "name": "List disputes pending manual review",
-          "description": "MANUAL_REVIEW cases stay IN_REVIEW until the analyst flow exists (Increment 2).",
+          "description": "MANUAL_REVIEW cases wait in AWAITING_ANALYST with an open analyst task. Run before folder 06 decides P03/P04.",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('200 with only IN_REVIEW', () => {",
+                  "pm.test('200 with only AWAITING_ANALYST', () => {",
                   "  pm.response.to.have.status(200);",
                   "  const content = pm.response.json().content;",
                   "  pm.expect(content).to.be.an('array').that.is.not.empty;",
-                  "  content.forEach(d => pm.expect(d.status).to.eql('IN_REVIEW'));",
+                  "  content.forEach(d => pm.expect(d.status).to.eql('AWAITING_ANALYST'));",
                   "});"
                 ]
               }
@@ -1161,10 +1235,10 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/v1/disputes?status=IN_REVIEW",
+              "raw": "{{baseUrl}}/api/v1/disputes?status=AWAITING_ANALYST",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes"],
-              "query": [{ "key": "status", "value": "IN_REVIEW" }]
+              "query": [{ "key": "status", "value": "AWAITING_ANALYST" }]
             }
           }
         },
@@ -1210,6 +1284,629 @@
               "raw": "{{baseUrl}}/api/v1/disputes/{{disputeId}}/timeline",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "disputes", "{{disputeId}}", "timeline"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Analyst review tasks",
+      "description": "Analyst queue and decisions for the MANUAL_REVIEW disputes created in folder 02 (P03 -> DUPLICATE_SUPPORTED, P04 -> NOT_SUPPORTED). P06 is left open for folder 07. Run it within the review deadline after folder 02 (default 5 minutes): later, P03/P04 also time out and their timeline gets an extra TIMEOUT_REVIEW_REQUIRED event.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{analystUser}}", "type": "string" },
+          { "key": "password", "value": "{{password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "List pending review tasks",
+          "description": "Stores the task ids of P03, P04 and P06 for the next requests.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with the open tasks of P03, P04 and P06', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const tasks = pm.response.json().content;",
+                  "  const taskFor = key => tasks.find(t => t.disputeId === pm.collectionVariables.get(key));",
+                  "  [['manualDisputeId', 'manualTaskId'], ['manualDispute2Id', 'manualTask2Id'],",
+                  "   ['timeoutDisputeId', 'timeoutTaskId']].forEach(([disputeKey, taskKey]) => {",
+                  "    const task = taskFor(disputeKey);",
+                  "    pm.expect(task, 'task for ' + disputeKey).to.be.an('object');",
+                  "    pm.expect(task.taskDefinitionKey).to.eql('Task_ManualReview');",
+                  "    pm.collectionVariables.set(taskKey, task.taskId);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks?page=0&size=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "100", "description": "1..100" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get review task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 for the P03 dispute, not overdue yet', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const task = pm.response.json();",
+                  "  pm.expect(task.taskId).to.eql(pm.collectionVariables.get('manualTaskId'));",
+                  "  pm.expect(task.disputeId).to.eql(pm.collectionVariables.get('manualDisputeId'));",
+                  "  pm.expect(task.overdue).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}"]
+            }
+          }
+        },
+        {
+          "name": "Dispute under review is AWAITING_ANALYST",
+          "description": "The task has no dispute context; the analyst screen reads it from the dispute detail.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 AWAITING_ANALYST, MANUAL_REVIEW, no decision yet', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('AWAITING_ANALYST');",
+                  "  pm.expect(body.assessmentOutcome).to.eql('MANUAL_REVIEW');",
+                  "  pm.expect(body.decision).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{manualDisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{manualDisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Unknown task -> 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 REVIEW_TASK_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('REVIEW_TASK_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{$guid}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{$guid}}"]
+            }
+          }
+        },
+        {
+          "name": "Customer lists review tasks -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customerUser}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Complete with blank comment -> 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 VALIDATION_FAILED on comment', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.errorCode).to.eql('VALIDATION_FAILED');",
+                  "  pm.expect(body.violations.map(v => v.field)).to.include('comment');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDisputeId}}\",\n  \"decision\": \"DUPLICATE_SUPPORTED\",\n  \"comment\": \"   \"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Complete with another dispute id -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 REVIEW_TASK_DISPUTE_MISMATCH', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('REVIEW_TASK_DISPUTE_MISMATCH');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDispute2Id}}\",\n  \"decision\": \"DUPLICATE_SUPPORTED\",\n  \"comment\": \"Wrong dispute for this task\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Customer completes a task -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customerUser}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDisputeId}}\",\n  \"decision\": \"DUPLICATE_SUPPORTED\",\n  \"comment\": \"Customers cannot decide\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Decide P03 as DUPLICATE_SUPPORTED -> 202",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 ACCEPTED', () => {",
+                  "  pm.response.to.have.status(202);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('ACCEPTED');",
+                  "  pm.expect(body.taskId).to.eql(pm.collectionVariables.get('manualTaskId'));",
+                  "  pm.expect(body.disputeId).to.eql(pm.collectionVariables.get('manualDisputeId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDisputeId}}\",\n  \"decision\": \"DUPLICATE_SUPPORTED\",\n  \"comment\": \"Both charges are the same purchase; the second one is a duplicate.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Decide P03 again -> 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 REVIEW_TASK_ALREADY_COMPLETED', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().errorCode).to.eql('REVIEW_TASK_ALREADY_COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDisputeId}}\",\n  \"decision\": \"NOT_SUPPORTED\",\n  \"comment\": \"Second attempt on a completed task\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Decide P04 as NOT_SUPPORTED -> 202",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 ACCEPTED', () => {",
+                  "  pm.response.to.have.status(202);",
+                  "  pm.expect(pm.response.json().status).to.eql('ACCEPTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{manualDispute2Id}}\",\n  \"decision\": \"NOT_SUPPORTED\",\n  \"comment\": \"Charges three hours apart correspond to two separate purchases.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{manualTask2Id}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{manualTask2Id}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "P03 is resolved by the analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 RESOLVED_DUPLICATE_SUPPORTED with ANALYST decision', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
+                  "  pm.expect(body.resolvedAt).to.be.a('string');",
+                  "  pm.expect(body.decision.decisionType).to.eql('DUPLICATE_SUPPORTED');",
+                  "  pm.expect(body.decision.decisionSource).to.eql('ANALYST');",
+                  "  pm.expect(body.decision.decidedBy).to.eql(pm.variables.get('analystUser'));",
+                  "  pm.expect(body.decision.rationale).to.include('duplicate');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{manualDisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{manualDisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "P04 is resolved by the analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 RESOLVED_NOT_SUPPORTED with ANALYST decision', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('RESOLVED_NOT_SUPPORTED');",
+                  "  pm.expect(body.decision.decisionSource).to.eql('ANALYST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{manualDispute2Id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{manualDispute2Id}}"]
+            }
+          }
+        },
+        {
+          "name": "P03 timeline shows the analyst decision",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with the manual-review trail', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const events = pm.response.json();",
+                  "  pm.expect(events.map(e => e.eventType)).to.eql(",
+                  "    ['CREATED', 'STATE_CHANGED', 'ASSESSED', 'STATE_CHANGED', 'DECIDED']);",
+                  "  pm.expect(events[3].newStatus).to.eql('AWAITING_ANALYST');",
+                  "  pm.expect(events[4].oldStatus).to.eql('AWAITING_ANALYST');",
+                  "  pm.expect(events[4].newStatus).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
+                  "  pm.expect(events[4].actorId).to.eql(pm.variables.get('analystUser'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{manualDisputeId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{manualDisputeId}}", "timeline"]
+            }
+          }
+        },
+        {
+          "name": "Customer sees the analyst decision",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 resolved for the owner', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql('RESOLVED_DUPLICATE_SUPPORTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                { "key": "username", "value": "{{customerUser}}", "type": "string" },
+                { "key": "password", "value": "{{password}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{manualDisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{manualDisputeId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Review timeout (run after the deadline)",
+      "description": "Run at least the review deadline (default PT5M, CARD_DISPUTE_MANUAL_REVIEW_TIMEOUT) after folder 02, so the timer of P06 has fired. The timer is non-interrupting: the dispute becomes TIMEOUT_REVIEW_REQUIRED but the task stays open and can still be decided.",
+      "auth": {
+        "type": "basic",
+        "basic": [
+          { "key": "username", "value": "{{analystUser}}", "type": "string" },
+          { "key": "password", "value": "{{password}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "P06 is TIMEOUT_REVIEW_REQUIRED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 TIMEOUT_REVIEW_REQUIRED, still undecided', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('TIMEOUT_REVIEW_REQUIRED');",
+                  "  pm.expect(body.decision).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{timeoutDisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{timeoutDisputeId}}"]
+            }
+          }
+        },
+        {
+          "name": "P06 task is still open and overdue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 overdue task for P06', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const task = pm.response.json();",
+                  "  pm.expect(task.disputeId).to.eql(pm.collectionVariables.get('timeoutDisputeId'));",
+                  "  pm.expect(task.overdue).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{timeoutTaskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{timeoutTaskId}}"]
+            }
+          }
+        },
+        {
+          "name": "P06 timeline shows the deadline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with the timeout state change', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const last = pm.response.json().slice(-1)[0];",
+                  "  pm.expect(last.eventType).to.eql('STATE_CHANGED');",
+                  "  pm.expect(last.oldStatus).to.eql('AWAITING_ANALYST');",
+                  "  pm.expect(last.newStatus).to.eql('TIMEOUT_REVIEW_REQUIRED');",
+                  "  pm.expect(last.details).to.eql('Analyst review deadline reached');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{timeoutDisputeId}}/timeline",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{timeoutDisputeId}}", "timeline"]
+            }
+          }
+        },
+        {
+          "name": "Decide P06 after the deadline -> 202",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('202 ACCEPTED', () => pm.response.to.have.status(202));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disputeId\": \"{{timeoutDisputeId}}\",\n  \"decision\": \"NOT_SUPPORTED\",\n  \"comment\": \"Same reference but different amounts: two separate charges.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workflow/tasks/{{timeoutTaskId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workflow", "tasks", "{{timeoutTaskId}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "P06 is resolved after the timeout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 RESOLVED_NOT_SUPPORTED by the analyst', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('RESOLVED_NOT_SUPPORTED');",
+                  "  pm.expect(body.decision.decisionSource).to.eql('ANALYST');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/disputes/{{timeoutDisputeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "disputes", "{{timeoutDisputeId}}"]
             }
           }
         }
