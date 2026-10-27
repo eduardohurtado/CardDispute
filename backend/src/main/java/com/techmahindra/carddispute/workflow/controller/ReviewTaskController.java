@@ -174,11 +174,15 @@ public interface ReviewTaskController {
     )
     @ApiResponse(
             responseCode = "404",
-            description = "Pending review task not found."
+            description = "Review task not found."
     )
     @ApiResponse(
             responseCode = "409",
-            description = "Invalid business state or dispute correlation."
+            description = "Task already completed, dispute already resolved, or task/dispute mismatch."
+    )
+    @ApiResponse(
+            responseCode = "422",
+            description = "Missing decision or rationale, or rationale longer than 1000 characters."
     )
     @PostMapping("/{taskId}/complete")
     ResponseEntity<ManualReviewCompletionResponse> completeManualReview(
