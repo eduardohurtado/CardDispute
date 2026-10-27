@@ -1,5 +1,6 @@
 package com.techmahindra.carddispute.dispute.service;
 
+import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
 import com.techmahindra.carddispute.common.exception.ConflictException;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DecisionSource;
@@ -33,6 +34,8 @@ import java.util.UUID;
 public class DisputeLifecycleService {
 
     public static final String SYSTEM_ACTOR = "SYSTEM";
+    /** dispute_decision.rationale is NVARCHAR(1000). */
+    private static final int MAX_RATIONALE_LENGTH = 1000;
 
     private final DisputeCaseRepository disputeRepository;
     private final DisputeDecisionRepository decisionRepository;
@@ -118,17 +121,119 @@ public class DisputeLifecycleService {
         changeStatus(dispute, DisputeStatus.AWAITING_ANALYST, correlationId);
     }
 
+    /**
+     * Checks that an analyst can decide the dispute now, without changing it. Lets the API reject a
+     * decision before the Camunda task is completed.
+     */
+    @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)
+    public void validateAnalystDecision(UUID disputeId, DecisionType decisionType, String rationale,
+                                        String analystId) {
+        requireAnalystDecisionInput(decisionType, rationale, analystId);
+        requireAwaitingAnalystDecision(load(disputeId));
+    }
+
+    /**
+     * AWAITING_ANALYST / TIMEOUT_REVIEW_REQUIRED -> RESOLVED_* with an ANALYST decision. A repeated call for
+     * an already recorded analyst decision is a no-op (retried service task).
+     */
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
+    public void resolveByAnalyst(UUID disputeId, DecisionType decisionType, String rationale, String analystId,
+                                 String correlationId) {
+        requireAnalystDecisionInput(decisionType, rationale, analystId);
+        DisputeCase dispute = load(disputeId);
+        boolean alreadyDecidedByAnalyst = decisionRepository.findByDisputeId(disputeId)
+                .filter(decision -> decision.getDecisionSource() == DecisionSource.ANALYST)
+                .isPresent();
+        if (dispute.getStatus().isTerminal() && alreadyDecidedByAnalyst) {
+            return;
+        }
+        requireAwaitingAnalystDecision(dispute);
+
+        String trimmedRationale = rationale.trim();
+        Instant now = clock.instant();
+        DisputeStatus oldStatus = dispute.getStatus();
+        dispute.transitionTo(decisionType.resultingStatus(), now);
+        decisionRepository.save(DisputeDecision.of(disputeId, decisionType, DecisionSource.ANALYST,
+                trimmedRationale, analystId, now));
+        auditService.record(disputeId, AuditEventType.DECIDED, oldStatus, dispute.getStatus(), analystId,
+                correlationId, decisionType + ": " + trimmedRationale, now);
+        // Increment 3: save the notification outbox event here, in this same transaction
+
+        log.info("Dispute {} resolved by analyst {} as {} (correlationId={})", disputeId, analystId, decisionType,
+                correlationId);
+    }
+
+    /**
+     * AWAITING_ANALYST -> TIMEOUT_REVIEW_REQUIRED when the review deadline passes. This is an exception
+     * state, not a verdict: the analyst task stays open and can still be decided. No-op when the dispute was
+     * already flagged or decided (the timer can race with the analyst decision).
+     */
+    @Transactional(transactionManager = "cardDisputeTransactionManager")
+    public void markReviewTimedOut(UUID disputeId, String correlationId) {
+        DisputeCase dispute = load(disputeId);
+        if (dispute.getStatus() != DisputeStatus.AWAITING_ANALYST) {
+            log.info("Review deadline ignored for dispute {} in status {} (correlationId={})", disputeId,
+                    dispute.getStatus(), correlationId);
+            return;
+        }
+        changeStatus(dispute, DisputeStatus.TIMEOUT_REVIEW_REQUIRED, correlationId,
+                "Analyst review deadline reached");
+    }
+
+    private static void requireAnalystDecisionInput(DecisionType decisionType, String rationale,
+                                                    String analystId) {
+        if (decisionType == null) {
+            throw new BusinessRuleViolationException("DECISION_REQUIRED", "An analyst decision is required");
+        }
+        if (rationale == null || rationale.isBlank()) {
+            throw new BusinessRuleViolationException("RATIONALE_REQUIRED",
+                    "The analyst decision requires a rationale");
+        }
+        if (rationale.trim().length() > MAX_RATIONALE_LENGTH) {
+            throw new BusinessRuleViolationException("RATIONALE_TOO_LONG",
+                    "The rationale must be at most " + MAX_RATIONALE_LENGTH + " characters");
+        }
+        if (analystId == null || analystId.isBlank()) {
+            throw new IllegalArgumentException("analystId must not be blank");
+        }
+    }
+
+    /**
+     * The dispute must be open, waiting for an analyst and assessed as MANUAL_REVIEW.
+     */
+    private static void requireAwaitingAnalystDecision(DisputeCase dispute) {
+        if (dispute.getStatus().isTerminal()) {
+            throw new ConflictException("DISPUTE_ALREADY_RESOLVED",
+                    "Dispute " + dispute.getDisputeId() + " is already " + dispute.getStatus());
+        }
+        if (dispute.getStatus() != DisputeStatus.AWAITING_ANALYST
+                && dispute.getStatus() != DisputeStatus.TIMEOUT_REVIEW_REQUIRED
+                && dispute.getStatus() != DisputeStatus.IN_REVIEW) {
+            throw new ConflictException("INVALID_STATE_TRANSITION",
+                    "Dispute " + dispute.getDisputeId() + " is " + dispute.getStatus()
+                            + " and cannot be decided by an analyst");
+        }
+        if (dispute.getAssessmentOutcome() != AssessmentOutcome.MANUAL_REVIEW) {
+            throw new ConflictException("MANUAL_REVIEW_NOT_REQUIRED",
+                    "Dispute " + dispute.getDisputeId() + " was not assessed for manual review");
+        }
+    }
+
     private MatchAssessment evaluate(DisputeCase dispute) {
         return matchingService.evaluate(transactionService.getById(dispute.getTransactionId()),
                 transactionService.getById(dispute.getCandidateTransactionId()));
     }
 
     private void changeStatus(DisputeCase dispute, DisputeStatus target, String correlationId) {
+        changeStatus(dispute, target, correlationId, null);
+    }
+
+    private void changeStatus(DisputeCase dispute, DisputeStatus target, String correlationId, String details) {
         Instant now = clock.instant();
         DisputeStatus oldStatus = dispute.getStatus();
         dispute.transitionTo(target, now);
         auditService.record(dispute.getDisputeId(), AuditEventType.STATE_CHANGED, oldStatus, target, SYSTEM_ACTOR,
-                correlationId, null, now);
+                correlationId, details, now);
         log.info("Dispute {} moved from {} to {} (correlationId={})", dispute.getDisputeId(), oldStatus, target,
                 correlationId);
     }
