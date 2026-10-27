@@ -26,6 +26,17 @@ camunda:
       properties:
         history-time-to-live: P1D
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # Local POC: only the health endpoint is published (no env, beans, metrics, ...)
+        include: health
+  endpoint:
+    health:
+      # Public endpoint: overall UP/DOWN only, no component details
+      show-details: never
+
 logging:
   level:
     org.camunda.bpm.engine: info
@@ -62,7 +73,7 @@ application:
       eligibility-window: P60D
       duplicate-match-window: PT1H
       review-match-window: PT24H
-      manual-review-timeout: ${CARD_DISPUTE_MANUAL_REVIEW_TIMEOUT:PT48H}
+      manual-review-timeout: ${CARD_DISPUTE_MANUAL_REVIEW_TIMEOUT:PT5M}
       high-value-thresholds:
         COP: 2000000
         USD: 500

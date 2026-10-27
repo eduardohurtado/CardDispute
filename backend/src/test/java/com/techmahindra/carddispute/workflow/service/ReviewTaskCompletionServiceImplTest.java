@@ -2,6 +2,7 @@
 package com.techmahindra.carddispute.workflow.service;
 
 import com.techmahindra.carddispute.common.exception.ConflictException;
+import com.techmahindra.carddispute.common.exception.ResourceNotFoundException;
 import com.techmahindra.carddispute.dispute.entity.DecisionType;
 import com.techmahindra.carddispute.dispute.service.ManualReviewDecisionService;
 import com.techmahindra.carddispute.security.AuthenticatedUser;
@@ -10,8 +11,10 @@ import com.techmahindra.carddispute.workflow.dto.CompleteManualReviewRequest;
 import com.techmahindra.carddispute.workflow.dto.ManualReviewCompletionResponse;
 import com.techmahindra.carddispute.workflow.service.impl.ReviewTaskCompletionServiceImpl;
 
+import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.task.Task;
@@ -48,6 +51,12 @@ class ReviewTaskCompletionServiceImplTest {
 
     @Mock
     private RuntimeService runtimeService;
+
+    @Mock
+    private HistoryService historyService;
+
+    @Mock
+    private HistoricTaskInstanceQuery historicTaskQuery;
 
     @Mock
     private ManualReviewDecisionService decisionService;
@@ -196,6 +205,57 @@ class ReviewTaskCompletionServiceImplTest {
 
         verify(taskService, never())
                 .complete(anyString(), anyMap());
+    }
+
+    @Test
+    void shouldRejectAlreadyCompletedTaskWithConflict() {
+
+        mockNoActiveTask();
+        mockHistoricCompletedTasks(1);
+
+        ConflictException error = assertThrows(
+                ConflictException.class,
+                () -> service.complete(TASK_ID, request(DISPUTE_ID), analyst, "correlation-001")
+        );
+
+        assertEquals("REVIEW_TASK_ALREADY_COMPLETED", error.getErrorCode());
+        verifyNoInteractions(decisionService);
+        verify(taskService, never()).complete(anyString(), anyMap());
+    }
+
+    @Test
+    void shouldRejectUnknownTaskAsNotFound() {
+
+        mockNoActiveTask();
+        mockHistoricCompletedTasks(0);
+
+        ResourceNotFoundException error = assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.complete(TASK_ID, request(DISPUTE_ID), analyst, "correlation-001")
+        );
+
+        assertEquals("REVIEW_TASK_NOT_FOUND", error.getErrorCode());
+        verifyNoInteractions(decisionService);
+    }
+
+    private void mockNoActiveTask() {
+
+        when(taskService.createTaskQuery()).thenReturn(taskQuery);
+        when(taskQuery.taskId(TASK_ID)).thenReturn(taskQuery);
+        when(taskQuery.processDefinitionKey("card-dispute-process")).thenReturn(taskQuery);
+        when(taskQuery.taskDefinitionKey("Task_ManualReview")).thenReturn(taskQuery);
+        when(taskQuery.active()).thenReturn(taskQuery);
+        when(taskQuery.singleResult()).thenReturn(null);
+    }
+
+    private void mockHistoricCompletedTasks(long count) {
+
+        when(historyService.createHistoricTaskInstanceQuery()).thenReturn(historicTaskQuery);
+        when(historicTaskQuery.taskId(TASK_ID)).thenReturn(historicTaskQuery);
+        when(historicTaskQuery.processDefinitionKey("card-dispute-process")).thenReturn(historicTaskQuery);
+        when(historicTaskQuery.taskDefinitionKey("Task_ManualReview")).thenReturn(historicTaskQuery);
+        when(historicTaskQuery.finished()).thenReturn(historicTaskQuery);
+        when(historicTaskQuery.count()).thenReturn(count);
     }
 
     private void mockTaskAndProcess() {

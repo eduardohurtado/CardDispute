@@ -2,26 +2,31 @@
 package com.techmahindra.carddispute.dispute.service.impl;
 
 import com.techmahindra.carddispute.dispute.entity.DecisionType;
+import com.techmahindra.carddispute.dispute.service.DisputeLifecycleService;
 import com.techmahindra.carddispute.dispute.service.ManualReviewDecisionService;
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-@Slf4j
+/** Workflow-facing entry point for analyst decisions; the business rules live in DisputeLifecycleService. */
 @Service
+@RequiredArgsConstructor
 public class ManualReviewDecisionServiceImpl implements ManualReviewDecisionService {
 
+    private final DisputeLifecycleService lifecycleService;
+
+    @Override
     public void validateManualDecision(
             UUID disputeId,
             DecisionType decision,
             String comment,
             String analystUsername
     ) {
-        log.info("Validating manual decision for dispute {}", disputeId);
-        throw new UnsupportedOperationException("Manual validation not implemented");
+        lifecycleService.validateAnalystDecision(disputeId, decision, comment, analystUsername);
     }
 
+    @Override
     public void resolveManually(
             UUID disputeId,
             DecisionType decision,
@@ -29,7 +34,6 @@ public class ManualReviewDecisionServiceImpl implements ManualReviewDecisionServ
             String analystUsername,
             String correlationId
     ) {
-        log.info("Resolving dispute {} manually", disputeId);
-        throw new UnsupportedOperationException("Manual resolution not implemented");
+        lifecycleService.resolveByAnalyst(disputeId, decision, comment, analystUsername, correlationId);
     }
 }

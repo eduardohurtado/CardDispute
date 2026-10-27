@@ -1,5 +1,6 @@
 package com.techmahindra.carddispute.dispute.service;
 
+import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
 import com.techmahindra.carddispute.common.exception.ConflictException;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DecisionSource;
@@ -155,5 +156,153 @@ class DisputeLifecycleServiceTest {
         // A retried step must not duplicate the audit entry
         verify(auditService, times(1)).record(any(), eq(AuditEventType.STATE_CHANGED), any(), any(), any(), any(),
                 any(), any());
+    }
+
+    @Test
+    void analystResolvesAwaitingDispute() {
+        awaitingAnalyst();
+
+        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.DUPLICATE_SUPPORTED,
+                "  Same receipt on both charges  ", "analyst001", "c");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED);
+        assertThat(dispute.getResolvedAt()).isEqualTo(NOW);
+        ArgumentCaptor<DisputeDecision> decision = ArgumentCaptor.forClass(DisputeDecision.class);
+        verify(decisionRepository).save(decision.capture());
+        assertThat(decision.getValue().getDecisionType()).isEqualTo(DecisionType.DUPLICATE_SUPPORTED);
+        assertThat(decision.getValue().getDecisionSource()).isEqualTo(DecisionSource.ANALYST);
+        assertThat(decision.getValue().getRationale()).isEqualTo("Same receipt on both charges");
+        assertThat(decision.getValue().getDecidedBy()).isEqualTo("analyst001");
+        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.DECIDED),
+                eq(DisputeStatus.AWAITING_ANALYST), eq(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED),
+                eq("analyst001"), eq("c"), eq("DUPLICATE_SUPPORTED: Same receipt on both charges"), eq(NOW));
+    }
+
+    @Test
+    void analystCanStillDecideAfterReviewTimeout() {
+        awaitingAnalyst();
+        service.markReviewTimedOut(dispute.getDisputeId(), "c");
+
+        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
+                "analyst001", "c");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_NOT_SUPPORTED);
+    }
+
+    @Test
+    void analystCanDecideDisputeLeftInReviewByPreviousProcessVersion() {
+        dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
+        dispute.recordAssessment(AssessmentOutcome.MANUAL_REVIEW, NOW);
+
+        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
+                "analyst001", "c");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_NOT_SUPPORTED);
+    }
+
+    @Test
+    void analystDecisionRequiresRationale() {
+        awaitingAnalyst();
+
+        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED, "   ", "analyst001"))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "RATIONALE_REQUIRED");
+        assertThatThrownBy(() -> service.resolveByAnalyst(dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED, null, "analyst001", "c"))
+                .isInstanceOf(BusinessRuleViolationException.class);
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void analystDecisionRejectsTooLongRationale() {
+        awaitingAnalyst();
+
+        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED, "x".repeat(1001), "analyst001"))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "RATIONALE_TOO_LONG");
+    }
+
+    @Test
+    void analystCannotDecideResolvedDispute() {
+        dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
+        dispute.recordAssessment(AssessmentOutcome.SUPPORTED, NOW);
+        dispute.transitionTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED, NOW);
+
+        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED, "Override", "analyst001"))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "DISPUTE_ALREADY_RESOLVED");
+    }
+
+    @Test
+    void analystCannotDecideAutomaticallyAssessedDispute() {
+        dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
+        dispute.recordAssessment(AssessmentOutcome.SUPPORTED, NOW);
+
+        assertThatThrownBy(() -> service.resolveByAnalyst(dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED, "Override", "analyst001", "c"))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "MANUAL_REVIEW_NOT_REQUIRED");
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void retriedAnalystResolutionIsNoOp() {
+        awaitingAnalyst();
+        dispute.transitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED, NOW);
+        when(decisionRepository.findByDisputeId(dispute.getDisputeId())).thenReturn(Optional.of(
+                DisputeDecision.of(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, DecisionSource.ANALYST,
+                        "Different purchases", "analyst001", NOW)));
+
+        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
+                "analyst001", "c");
+
+        verify(decisionRepository, never()).save(any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void validationDoesNotChangeTheDispute() {
+        awaitingAnalyst();
+
+        service.validateAnalystDecision(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
+                "analyst001");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.AWAITING_ANALYST);
+        verify(decisionRepository, never()).save(any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void reviewDeadlineFlagsAwaitingDispute() {
+        awaitingAnalyst();
+
+        service.markReviewTimedOut(dispute.getDisputeId(), "c");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.TIMEOUT_REVIEW_REQUIRED);
+        assertThat(dispute.getStatus().isOpen()).isTrue();
+        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.STATE_CHANGED),
+                eq(DisputeStatus.AWAITING_ANALYST), eq(DisputeStatus.TIMEOUT_REVIEW_REQUIRED), eq("SYSTEM"),
+                eq("c"), eq("Analyst review deadline reached"), eq(NOW));
+    }
+
+    @Test
+    void reviewDeadlineIsIgnoredOnceDecided() {
+        awaitingAnalyst();
+        dispute.transitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED, NOW);
+
+        service.markReviewTimedOut(dispute.getDisputeId(), "c");
+
+        assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_NOT_SUPPORTED);
+        verifyNoInteractions(auditService);
+    }
+
+    /** Puts the test dispute in AWAITING_ANALYST with a MANUAL_REVIEW assessment, without audit calls. */
+    private void awaitingAnalyst() {
+        dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
+        dispute.recordAssessment(AssessmentOutcome.MANUAL_REVIEW, NOW);
+        dispute.transitionTo(DisputeStatus.AWAITING_ANALYST, NOW);
     }
 }

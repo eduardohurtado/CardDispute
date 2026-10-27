@@ -11,6 +11,7 @@ import com.techmahindra.carddispute.workflow.service.ReviewTaskCompletionService
 
 import lombok.RequiredArgsConstructor;
 
+import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -37,6 +38,7 @@ public class ReviewTaskCompletionServiceImpl
 
     private final TaskService taskService;
     private final RuntimeService runtimeService;
+    private final HistoryService historyService;
     private final ManualReviewDecisionService decisionService;
 
     @Override
@@ -68,6 +70,13 @@ public class ReviewTaskCompletionServiceImpl
                 .singleResult();
 
         if (task == null) {
+            // A stale/completed task is a conflict (409), an unknown one is not found (404)
+            if (isCompletedReviewTask(taskId)) {
+                throw new ConflictException(
+                        "REVIEW_TASK_ALREADY_COMPLETED",
+                        "The review task has already been completed"
+                );
+            }
             throw new ResourceNotFoundException(
                     "REVIEW_TASK_NOT_FOUND",
                     "Pending review task not found"
@@ -127,5 +136,15 @@ public class ReviewTaskCompletionServiceImpl
                 processInstanceId,
                 "ACCEPTED"
         );
+    }
+
+    private boolean isCompletedReviewTask(String taskId) {
+
+        return historyService.createHistoricTaskInstanceQuery()
+                .taskId(taskId)
+                .processDefinitionKey(PROCESS_DEFINITION_KEY)
+                .taskDefinitionKey(TASK_DEFINITION_KEY)
+                .finished()
+                .count() > 0;
     }
 }
