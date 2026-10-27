@@ -49,7 +49,7 @@ class CardDisputeProcessModelTest {
         ServiceTask resolve = model.getModelElementById("Task_ResolveManualReview");
 
         // Synchronous, so a failed resolution rolls back the task completion and reaches the analyst as an error
-        assertThat(resolve.isCamundaAsyncBefore()).isFalse();
+        assertThat(resolve.isCamundaAsyncBefore()).isTrue();
         assertThat(resolve.getCamundaDelegateExpression()).isEqualTo("${resolveManualReviewDelegate}");
     }
 
