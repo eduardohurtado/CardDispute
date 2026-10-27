@@ -136,19 +136,21 @@ public interface ReviewTaskController {
             String taskId
     );
 
-
     @Operation(
             operationId = "completeManualReviewTask",
             summary = "Complete a manual review task",
             description = """
-                Validates an analyst decision and completes the
+                Validates the analyst decision and completes the
                 Camunda User Task.
 
-                The banking resolution is processed asynchronously
-                by the workflow continuation.
+                The manual banking resolution executes asynchronously
+                through a Camunda job.
 
-                HTTP 202 confirms task completion acceptance,
-                not final banking resolution.
+                HTTP 202 confirms that task completion was accepted
+                and the workflow continuation was scheduled.
+
+                It does not confirm that the banking dispute
+                has reached a final resolution.
                 """
     )
     @ApiResponse(

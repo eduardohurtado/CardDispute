@@ -299,6 +299,88 @@ class DisputeLifecycleServiceTest {
         verifyNoInteractions(auditService);
     }
 
+
+    @Test
+    void retriedAnalystResolutionWithDifferentDecisionIsRejected() {
+
+        awaitingAnalyst();
+
+        dispute.transitionTo(
+                DisputeStatus.RESOLVED_NOT_SUPPORTED,
+                NOW
+        );
+
+        when(decisionRepository.findByDisputeId(
+                dispute.getDisputeId()
+        )).thenReturn(Optional.of(
+                DisputeDecision.of(
+                        dispute.getDisputeId(),
+                        DecisionType.NOT_SUPPORTED,
+                        DecisionSource.ANALYST,
+                        "Different purchases",
+                        "analyst001",
+                        NOW
+                )
+        ));
+
+        assertThatThrownBy(() -> service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.DUPLICATE_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "c"
+        ))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorCode",
+                        "MANUAL_DECISION_CONFLICT"
+                );
+
+        verify(decisionRepository, never()).save(any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void retriedAnalystResolutionByDifferentAnalystIsRejected() {
+
+        awaitingAnalyst();
+
+        dispute.transitionTo(
+                DisputeStatus.RESOLVED_NOT_SUPPORTED,
+                NOW
+        );
+
+        when(decisionRepository.findByDisputeId(
+                dispute.getDisputeId()
+        )).thenReturn(Optional.of(
+                DisputeDecision.of(
+                        dispute.getDisputeId(),
+                        DecisionType.NOT_SUPPORTED,
+                        DecisionSource.ANALYST,
+                        "Different purchases",
+                        "analyst001",
+                        NOW
+                )
+        ));
+
+        assertThatThrownBy(() -> service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst002",
+                "c"
+        ))
+                .isInstanceOf(ConflictException.class)
+                .hasFieldOrPropertyWithValue(
+                        "errorCode",
+                        "MANUAL_DECISION_CONFLICT"
+                );
+
+        verify(decisionRepository, never()).save(any());
+        verifyNoInteractions(auditService);
+    }
+
+
     /** Puts the test dispute in AWAITING_ANALYST with a MANUAL_REVIEW assessment, without audit calls. */
     private void awaitingAnalyst() {
         dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);

@@ -136,32 +136,68 @@ public class DisputeLifecycleService {
      * AWAITING_ANALYST / TIMEOUT_REVIEW_REQUIRED -> RESOLVED_* with an ANALYST decision. A repeated call for
      * an already recorded analyst decision is a no-op (retried service task).
      */
+
     @Transactional(transactionManager = "cardDisputeTransactionManager")
-    public void resolveByAnalyst(UUID disputeId, DecisionType decisionType, String rationale, String analystId,
-                                 String correlationId) {
-        requireAnalystDecisionInput(decisionType, rationale, analystId);
+    public void resolveByAnalyst(UUID disputeId, DecisionType decisionType, String rationale
+            , String analystId, String correlationId) {
+
+        requireAnalystDecisionInput(
+                decisionType,
+                rationale,
+                analystId
+        );
+
         DisputeCase dispute = load(disputeId);
-        boolean alreadyDecidedByAnalyst = decisionRepository.findByDisputeId(disputeId)
-                .filter(decision -> decision.getDecisionSource() == DecisionSource.ANALYST)
-                .isPresent();
-        if (dispute.getStatus().isTerminal() && alreadyDecidedByAnalyst) {
-            return;
+        String trimmedRationale = rationale.trim();
+
+        if (dispute.getStatus().isTerminal()) {
+
+            DisputeDecision existingDecision = decisionRepository
+                    .findByDisputeId(disputeId)
+                    .orElseThrow(() -> new ConflictException("DISPUTE_ALREADY_RESOLVED"
+                            , "Dispute " + disputeId + " is resolved without a matching decision"));
+
+            boolean sameResolution =
+                    existingDecision.getDecisionSource()
+                            == DecisionSource.ANALYST
+                            && existingDecision.getDecisionType()
+                            == decisionType
+                            && existingDecision.getDecidedBy()
+                            .equals(analystId)
+                            && existingDecision.getRationale()
+                            .equals(trimmedRationale)
+                            && dispute.getStatus()
+                            == decisionType.resultingStatus();
+
+            if (sameResolution) {
+                log.info("Idempotent analyst resolution for dispute {} (correlationId={})", disputeId, correlationId);
+                return;
+            }
+
+            throw new ConflictException("MANUAL_DECISION_CONFLICT"
+                    , "Dispute " + disputeId + " has already been resolved with a different decision");
         }
+
         requireAwaitingAnalystDecision(dispute);
 
-        String trimmedRationale = rationale.trim();
         Instant now = clock.instant();
         DisputeStatus oldStatus = dispute.getStatus();
-        dispute.transitionTo(decisionType.resultingStatus(), now);
-        decisionRepository.save(DisputeDecision.of(disputeId, decisionType, DecisionSource.ANALYST,
-                trimmedRationale, analystId, now));
-        auditService.record(disputeId, AuditEventType.DECIDED, oldStatus, dispute.getStatus(), analystId,
-                correlationId, decisionType + ": " + trimmedRationale, now);
-        // Increment 3: save the notification outbox event here, in this same transaction
 
-        log.info("Dispute {} resolved by analyst {} as {} (correlationId={})", disputeId, analystId, decisionType,
-                correlationId);
+        dispute.transitionTo(
+                decisionType.resultingStatus(),
+                now
+        );
+
+        decisionRepository.save(DisputeDecision.of(disputeId, decisionType
+                , DecisionSource.ANALYST, trimmedRationale, analystId, now));
+
+        auditService.record(disputeId, AuditEventType.DECIDED, oldStatus, dispute.getStatus()
+                , analystId, correlationId,decisionType + ": " + trimmedRationale, now);
+
+        log.info("Dispute {} resolved by analyst {} as {} (correlationId={})", disputeId, analystId
+                , decisionType, correlationId);
     }
+
 
     /**
      * AWAITING_ANALYST -> TIMEOUT_REVIEW_REQUIRED when the review deadline passes. This is an exception

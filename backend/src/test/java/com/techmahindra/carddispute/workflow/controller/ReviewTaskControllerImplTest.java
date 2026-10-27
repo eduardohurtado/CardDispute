@@ -7,6 +7,7 @@ import com.techmahindra.carddispute.security.Role;
 import com.techmahindra.carddispute.security.config.SecurityConfig;
 import com.techmahindra.carddispute.security.service.DatabaseUserDetailsService;
 import com.techmahindra.carddispute.workflow.controller.impl.ReviewTaskControllerImpl;
+import com.techmahindra.carddispute.workflow.dto.ManualReviewCompletionResponse;
 import com.techmahindra.carddispute.workflow.dto.ReviewTaskResponse;
 import com.techmahindra.carddispute.workflow.service.ReviewTaskCompletionService;
 import com.techmahindra.carddispute.workflow.service.ReviewTaskQueryService;
@@ -26,10 +27,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ReviewTaskControllerImpl.class)
@@ -196,6 +199,114 @@ class ReviewTaskControllerImplTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(reviewTaskQueryService);
+    }
+
+    @Test
+    void analystCanCompleteManualReviewTask() throws Exception {
+
+        when(reviewTaskCompletionService.complete(
+                eq(TASK_ID),
+                any(),
+                any(),
+                anyString()
+        )).thenReturn(
+                new ManualReviewCompletionResponse(
+                        TASK_ID,
+                        DISPUTE_ID,
+                        "process-001",
+                        "ACCEPTED"
+                )
+        );
+
+        mockMvc.perform(
+                        post(BASE_URL + "/" + TASK_ID + "/complete")
+                                .with(httpBasic("analyst001", "demo"))
+                                .contentType(APPLICATION_JSON)
+                                .content(validCompletionJson())
+                )
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.taskId").value(TASK_ID))
+                .andExpect(jsonPath("$.disputeId")
+                        .value(DISPUTE_ID.toString()))
+                .andExpect(jsonPath("$.status")
+                        .value("ACCEPTED"));
+
+        verify(reviewTaskCompletionService).complete(
+                eq(TASK_ID),
+                argThat(request ->
+                        DISPUTE_ID.equals(request.disputeId())
+                                && "DUPLICATE_SUPPORTED".equals(
+                                request.decision().name())
+                                && "Duplicate confirmed".equals(
+                                request.comment())
+                ),
+                argThat(user ->
+                        "analyst001".equals(user.username())
+                                && user.isAnalyst()
+                ),
+                anyString()
+        );
+    }
+
+    @Test
+    void invalidCompletionRequestReturnsBadRequest() throws Exception {
+
+        String invalidJson = """
+                {
+                  "disputeId": "%s",
+                  "decision": null,
+                  "comment": ""
+                }
+                """.formatted(DISPUTE_ID);
+
+        mockMvc.perform(
+                        post(BASE_URL + "/" + TASK_ID + "/complete")
+                                .with(httpBasic("analyst001", "demo"))
+                                .contentType(APPLICATION_JSON)
+                                .content(invalidJson)
+                )
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(reviewTaskCompletionService);
+    }
+
+    @Test
+    void customerCannotCompleteManualReviewTask() throws Exception {
+
+        mockMvc.perform(
+                        post(BASE_URL + "/" + TASK_ID + "/complete")
+                                .with(httpBasic("customer001", "demo"))
+                                .contentType(APPLICATION_JSON)
+                                .content(validCompletionJson())
+                )
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(reviewTaskCompletionService);
+    }
+
+    @Test
+    void unauthenticatedUserCannotCompleteManualReviewTask()
+            throws Exception {
+
+        mockMvc.perform(
+                        post(BASE_URL + "/" + TASK_ID + "/complete")
+                                .contentType(APPLICATION_JSON)
+                                .content(validCompletionJson())
+                )
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(reviewTaskCompletionService);
+    }
+
+    private String validCompletionJson() {
+
+        return """
+                {
+                  "disputeId": "%s",
+                  "decision": "DUPLICATE_SUPPORTED",
+                  "comment": "Duplicate confirmed"
+                }
+                """.formatted(DISPUTE_ID);
     }
 
     private ReviewTaskResponse taskResponse() {
