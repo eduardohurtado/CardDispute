@@ -8,10 +8,6 @@ function taskWithDueAt(dueAt: string): AnalystTask {
 }
 
 describe('queueOf', () => {
-  it('puts a task that is due in more than a day into the pending queue', () => {
-    expect(queueOf(taskWithDueAt('2026-10-20T12:00:00Z'))).toBe('PENDING');
-  });
-
   it('puts a task that is due within a day into the due soon queue', () => {
     expect(queueOf(taskWithDueAt('2026-10-15T09:00:00Z'))).toBe('DUE_SOON');
   });

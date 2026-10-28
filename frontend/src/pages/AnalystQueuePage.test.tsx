@@ -9,7 +9,7 @@ describe('AnalystQueuePage', () => {
   it('lists the tasks', async () => {
     renderWithProviders({ route: '/analyst', role: 'DISPUTE_ANALYST' });
 
-    expect(await screen.findByRole('cell', { name: /b2000000-0000-4000-8000-000000000002/ })).toBeInTheDocument();
+    expect(await screen.findByRole('rowheader', { name: /b2000000-0000-4000-8000-000000000002/ })).toBeInTheDocument();
   });
 
   it('shows an empty state when the queue is empty', async () => {

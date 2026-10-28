@@ -436,7 +436,6 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000001',
       disputeId: 'b2000000-0000-4000-8000-000000000002',
-      customerId: DEMO_CUSTOMER_ID,
       status: 'AWAITING_ANALYST',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'I was charged twice for the same fuel purchase.',
@@ -460,7 +459,6 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000002',
       disputeId: 'b2000000-0000-4000-8000-000000000007',
-      customerId: DEMO_CUSTOMER_ID,
       status: 'AWAITING_ANALYST',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'The same order was billed twice.',
@@ -484,7 +482,6 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000003',
       disputeId: 'b2000000-0000-4000-8000-000000000008',
-      customerId: DEMO_CUSTOMER_ID,
       status: 'AWAITING_ANALYST',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'Two charges from the same pharmacy on the same day.',
@@ -508,7 +505,6 @@ function createDemoAnalystTasks(): AnalystTask[] {
     {
       taskId: 'd4000000-0000-4000-8000-000000000004',
       disputeId: 'b2000000-0000-4000-8000-000000000005',
-      customerId: DEMO_CUSTOMER_ID,
       status: 'TIMEOUT_REVIEW_REQUIRED',
       reasonCode: 'POSSIBLE_DUPLICATE',
       description: 'Same cinema booking was billed twice.',

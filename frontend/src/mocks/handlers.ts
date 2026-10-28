@@ -67,7 +67,7 @@ export function resetMockDb(): void {
   createdTimeline = {};
 }
 
-function allDisputes(): Dispute[] {
+function allDisputes(): (Dispute | DemoDispute)[] {
   return [...createdDisputes, ...demoDisputes];
 }
 
@@ -378,17 +378,21 @@ export const handlers = [
   http.get(DISPUTE_PATH, ({ request }) => {
     const disputeId = idOf(request.url, DISPUTE_PATH);
     const customerId = customerOf(request);
-    const dispute: DemoDispute | undefined = demoDisputes.find(
-      (candidate) => candidate.disputeId === disputeId,
-    );
+    const dispute: DemoDispute | Dispute | undefined =
+      demoDisputes.find((candidate) => candidate.disputeId === disputeId) ??
+      createdDisputes.find((candidate) => candidate.disputeId === disputeId);
 
     // A case that belongs to somebody else is reported as missing, so the
     // endpoint never reveals whether it exists.
-    if (!dispute || dispute.customerId !== customerId) {
+    if (!dispute || (dispute as DemoDispute).customerId !== customerId) {
       return caseNotFound();
     }
 
-    return HttpResponse.json(toPublicDispute(dispute));
+    if ('timeline' in dispute) {
+      return HttpResponse.json(toPublicDispute(dispute as DemoDispute));
+    }
+
+    return HttpResponse.json(dispute as Dispute);
   }),
 
   http.get(ANALYST_TASKS_PATH, ({ request }) => {

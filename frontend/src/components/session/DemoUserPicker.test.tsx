@@ -91,7 +91,7 @@ describe('DemoUserPicker', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Switch user' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/analyst'));
-    expect(await screen.findByRole('heading', { name: 'Analyst Queue' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Analyst workspace' })).toBeInTheDocument();
   });
 
   it('loads the new user data after the switch', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analystQueueMeta, assessmentOutcomeMeta, matchKindMeta } from '@/components/analyst/meta';
-import { ANALYST_QUEUES, MATCH_KINDS } from '@/types/analyst';
+import { ANALYST_QUEUES } from '@/types/analyst';
 
 describe('analyst meta', () => {
   it('labels every queue', () => {
@@ -11,7 +11,7 @@ describe('analyst meta', () => {
   });
 
   it('labels every match kind', () => {
-    for (const matchKind of MATCH_KINDS) {
+    for (const matchKind of ['EXACT', 'AMBIGUOUS', 'NONE', 'UNKNOWN'] as const) {
       expect(matchKindMeta[matchKind].label).not.toBe('');
       expect(matchKindMeta[matchKind].tone).toBeTruthy();
     }

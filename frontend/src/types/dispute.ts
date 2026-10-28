@@ -101,13 +101,11 @@ export interface Dispute {
 
 /** One entry of the business audit trail (blueprint 7.2 `dispute_audit_event`). */
 export interface TimelineEvent {
-  eventId: string;
+  actorId: string;
+  details: string | null;
   eventType: TimelineEventType;
   oldStatus: DisputeStatus | null;
   newStatus: DisputeStatus | null;
-  actorId: string;
-  correlationId: string;
-  details: string | null;
   occurredAt: string;
 }
 

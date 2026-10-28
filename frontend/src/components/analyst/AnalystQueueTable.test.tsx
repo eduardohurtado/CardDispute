@@ -23,7 +23,7 @@ describe('AnalystQueueTable', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('cell', { name: task.disputeId })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: task.disputeId })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: task.taskName })).toBeInTheDocument();
   });
 

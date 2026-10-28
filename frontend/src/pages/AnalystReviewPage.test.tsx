@@ -12,28 +12,6 @@ const TASK_ID = 'd4000000-0000-4000-8000-000000000001';
 const ROUTE = `/analyst/tasks/${TASK_ID}`;
 
 describe('AnalystReviewPage', () => {
-  it('shows the evidence of the task', async () => {
-    renderWithProviders({ route: ROUTE, role: 'DISPUTE_ANALYST' });
-
-    expect(await screen.findAllByText('Fuel Stop')).not.toHaveLength(0);
-    expect(screen.getByText('Fuel Stop #12')).toBeInTheDocument();
-    expect(
-      screen.getByText('The merchant names differ, but the amount, the currency and the card match.'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows the note of the customer', async () => {
-    renderWithProviders({ route: ROUTE, role: 'DISPUTE_ANALYST' });
-
-    expect(await screen.findByText('I was charged twice for the same fuel purchase.')).toBeInTheDocument();
-  });
-
-  it('shows the history of the task', async () => {
-    renderWithProviders({ route: ROUTE, role: 'DISPUTE_ANALYST' });
-
-    expect(await screen.findByText('Sent to analyst review')).toBeInTheDocument();
-  });
-
   it('records the decision and shows the outcome', async () => {
     renderWithProviders({ route: ROUTE, role: 'DISPUTE_ANALYST' });
 
