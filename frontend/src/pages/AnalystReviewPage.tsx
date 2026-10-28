@@ -1,10 +1,7 @@
 import { useEffect } from 'react';
 import { Link, useParams } from 'react-router';
 import { AnalystDecisionPanel } from '@/components/analyst/AnalystDecisionPanel';
-import { AnalystEvidence } from '@/components/analyst/AnalystEvidence';
-import { matchKindMeta } from '@/components/analyst/meta';
-import { DisputeTimeline } from '@/components/disputes/DisputeTimeline';
-import { StatusBadge } from '@/components/disputes/StatusBadge';
+import { DisputeFacts } from '@/components/disputes/DisputeFacts';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { StateBlock } from '@/components/ui/StateBlock';
@@ -12,6 +9,7 @@ import { isMockApi } from '@/config/apiMode';
 import { paths } from '@/routes/paths';
 import { useAppDispatch } from '@/store';
 import { useGetAnalystTaskQuery } from '@/store/api/analystApi';
+import { useGetDisputeQuery } from '@/store/api/disputesApi';
 import { showToast } from '@/store/slices/ui/uiSlice';
 import { describeApiError } from '@/utils/apiError';
 
@@ -26,6 +24,12 @@ export default function AnalystReviewPage() {
     error,
     refetch,
   } = useGetAnalystTaskQuery(taskId ?? '', { skip: !taskId });
+
+  const {
+    data: dispute,
+    isLoading: isDisputeLoading,
+    isError: isDisputeError,
+  } = useGetDisputeQuery(task?.disputeId ?? '', { skip: !task?.disputeId });
 
   useEffect(() => {
     if (isError) {
@@ -117,6 +121,28 @@ export default function AnalystReviewPage() {
           <AnalystDecisionPanel task={task} />
         </section>
       </div>
+
+      <section aria-labelledby="dispute-details-heading" className="space-y-3">
+        <h2 id="dispute-details-heading" className="text-lg font-semibold text-gray-900">
+          Dispute details
+        </h2>
+        {isDisputeLoading ? (
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            <Spinner label="Loading dispute" />
+            <span>Loading dispute details…</span>
+          </div>
+        ) : dispute && !isDisputeError ? (
+          <DisputeFacts dispute={dispute} />
+        ) : task.transaction ? (
+          <div className="rounded-md border border-gray-200 p-4 text-sm text-gray-600">
+            Dispute details are not available.
+          </div>
+        ) : (
+          <div className="rounded-md border border-gray-200 p-4 text-sm text-gray-600">
+            Dispute details are not available for this task.
+          </div>
+        )}
+      </section>
     </section>
   );
 }

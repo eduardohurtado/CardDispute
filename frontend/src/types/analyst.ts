@@ -2,11 +2,28 @@
  * Domain types for the analyst workspace.
  * Aligned to backend ReviewTaskController contract.
  */
-import type { DisputeDecisionType, PagedResponse } from "@/types/dispute";
+import type {
+  DisputeAssessmentOutcome,
+  DisputeDecision,
+  DisputeDecisionType,
+  DisputeReasonCode,
+  DisputeStatus,
+  DisputeTransaction,
+  PagedResponse,
+  TimelineEvent,
+} from "@/types/dispute";
 
 export const ANALYST_QUEUES = ["PENDING", "DUE_SOON"] as const;
 
 export type AnalystQueue = (typeof ANALYST_QUEUES)[number];
+
+export type MatchKind = "EXACT" | "AMBIGUOUS" | "NONE" | "UNKNOWN";
+
+export interface AnalystAssessment {
+  outcome: DisputeAssessmentOutcome;
+  matchKind: MatchKind;
+  explanation: string;
+}
 
 /** ReviewTaskResponse from backend */
 export interface ReviewTaskSummary {
@@ -22,7 +39,24 @@ export interface ReviewTaskSummary {
 
 /** Backwards compatible aliases */
 export type AnalystTaskSummary = ReviewTaskSummary;
-export type AnalystTask = ReviewTaskSummary;
+
+export interface AnalystTask extends ReviewTaskSummary {
+  status?: DisputeStatus | string;
+  reasonCode?: DisputeReasonCode;
+  description?: string | null;
+  merchantName?: string;
+  amount?: number;
+  currency?: string;
+  assessmentOutcome?: DisputeAssessmentOutcome | null;
+  matchKind?: MatchKind | string | null;
+  submittedAt?: string;
+  dueAt?: string;
+  transaction?: DisputeTransaction;
+  candidateTransaction?: DisputeTransaction | null;
+  assessment?: AnalystAssessment | null;
+  decision?: DisputeDecision | null;
+  timeline?: TimelineEvent[];
+}
 
 /** Paged work queue */
 export interface AnalystTaskPage extends PagedResponse<ReviewTaskSummary> {}

@@ -201,18 +201,19 @@ function toPublicDispute(dispute: DemoDispute): Dispute {
 }
 
 /** The projection the work queue returns. */
-function toSummary(task: AnalystTask): AnalystTaskSummary {
+function toSummary(task: AnalystTask): AnalystTask {
   const overdue = queueOf(task) === 'DUE_SOON';
   return {
+    ...task,
     taskId: task.taskId,
     disputeId: task.disputeId,
-    processInstanceId: task.taskId,
-    taskDefinitionKey: 'Task_ManualReview',
-    taskName: 'Review disputed transaction',
-    assignee: null,
-    createdAt: (task as any).submittedAt ?? new Date().toISOString(),
+    processInstanceId: task.processInstanceId ?? task.taskId,
+    taskDefinitionKey: task.taskDefinitionKey ?? 'Task_ManualReview',
+    taskName: task.taskName ?? 'Review disputed transaction',
+    assignee: task.assignee ?? null,
+    createdAt: (task as any).createdAt ?? (task as any).submittedAt ?? new Date().toISOString(),
     overdue,
-  };
+  } as AnalystTask;
 };
 
 export const handlers = [
@@ -377,10 +378,21 @@ export const handlers = [
 
   http.get(DISPUTE_PATH, ({ request }) => {
     const disputeId = idOf(request.url, DISPUTE_PATH);
-    const customerId = customerOf(request);
     const dispute: DemoDispute | Dispute | undefined =
       demoDisputes.find((candidate) => candidate.disputeId === disputeId) ??
       createdDisputes.find((candidate) => candidate.disputeId === disputeId);
+
+    if (hasAnalyst(request)) {
+      if (!dispute) {
+        return caseNotFound();
+      }
+      if ('timeline' in dispute) {
+        return HttpResponse.json(toPublicDispute(dispute as DemoDispute));
+      }
+      return HttpResponse.json(dispute as Dispute);
+    }
+
+    const customerId = customerOf(request);
 
     // A case that belongs to somebody else is reported as missing, so the
     // endpoint never reveals whether it exists.
