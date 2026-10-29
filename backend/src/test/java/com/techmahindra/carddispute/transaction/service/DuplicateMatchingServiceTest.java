@@ -1,8 +1,6 @@
 package com.techmahindra.carddispute.transaction.service;
 
-import com.techmahindra.carddispute.transaction.entity.CardTransaction;
-import com.techmahindra.carddispute.transaction.entity.TransactionStatus;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -10,21 +8,34 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+
+import com.techmahindra.carddispute.transaction.entity.CardTransaction;
+import com.techmahindra.carddispute.transaction.entity.TransactionStatus;
 
 class DuplicateMatchingServiceTest {
 
     private static final UUID CUSTOMER = UUID.randomUUID();
     private static final Instant T0 = Instant.parse("2026-10-15T09:00:00Z");
 
-    private final DuplicateMatchingService service = new DuplicateMatchingService(
-            new DisputeRulesProperties(Duration.ofDays(60), Duration.ofHours(1), Duration.ofHours(24),
-                    Map.of("COP", new BigDecimal("2000000"), "USD", new BigDecimal("500"))));
+    private final DuplicateMatchingService service =
+            new DuplicateMatchingService(
+                    new DisputeRulesProperties(
+                            Duration.ofDays(60),
+                            Duration.ofHours(1),
+                            Duration.ofHours(24),
+                            Map.of(
+                                    "COP",
+                                    new BigDecimal("2000000"),
+                                    "USD",
+                                    new BigDecimal("500"))));
 
     @Test
     void sameMerchantAmountAndCloseInTimeIsSupported() {
-        var result = service.evaluate(tx("CAFE AROMA", "35000", "COP", T0),
-                tx("CAFE AROMA", "35000.0000", "COP", T0.plus(Duration.ofMinutes(10))));
+        var result =
+                service.evaluate(
+                        tx("CAFE AROMA", "35000", "COP", T0),
+                        tx("CAFE AROMA", "35000.0000", "COP", T0.plus(Duration.ofMinutes(10))));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.SUPPORTED);
         assertThat(result.explanation()).contains("10 min");
@@ -32,8 +43,10 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void differentAmountIsNotSupported() {
-        var result = service.evaluate(tx("BOOK STORE", "80000", "COP", T0),
-                tx("BOOK STORE", "95000", "COP", T0.plusSeconds(600)));
+        var result =
+                service.evaluate(
+                        tx("BOOK STORE", "80000", "COP", T0),
+                        tx("BOOK STORE", "95000", "COP", T0.plusSeconds(600)));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.NOT_SUPPORTED);
     }
@@ -47,24 +60,30 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void ambiguousMerchantGoesToManualReview() {
-        var result = service.evaluate(tx("FUEL STOP", "120000", "COP", T0),
-                tx("FUEL STOP NORTE", "120000", "COP", T0.plusSeconds(1200)));
+        var result =
+                service.evaluate(
+                        tx("FUEL STOP", "120000", "COP", T0),
+                        tx("FUEL STOP NORTE", "120000", "COP", T0.plusSeconds(1200)));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.MANUAL_REVIEW);
     }
 
     @Test
     void unrelatedMerchantIsNotSupported() {
-        var result = service.evaluate(tx("PIZZA PALACE", "42000", "COP", T0),
-                tx("BOOK STORE", "42000", "COP", T0.plusSeconds(60)));
+        var result =
+                service.evaluate(
+                        tx("PIZZA PALACE", "42000", "COP", T0),
+                        tx("BOOK STORE", "42000", "COP", T0.plusSeconds(60)));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.NOT_SUPPORTED);
     }
 
     @Test
     void highValueGoesToManualReviewEvenWhenExact() {
-        var result = service.evaluate(tx("ELECTRO HOGAR", "3500000", "COP", T0),
-                tx("ELECTRO HOGAR", "3500000", "COP", T0.plusSeconds(300)));
+        var result =
+                service.evaluate(
+                        tx("ELECTRO HOGAR", "3500000", "COP", T0),
+                        tx("ELECTRO HOGAR", "3500000", "COP", T0.plusSeconds(300)));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.MANUAL_REVIEW);
         assertThat(result.explanation()).contains("high-value");
@@ -72,29 +91,40 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void outsideStrongWindowButInsideReviewWindowGoesToManualReview() {
-        var result = service.evaluate(tx("STREAMING PLUS", "15.99", "USD", T0),
-                tx("STREAMING PLUS", "15.99", "USD", T0.plus(Duration.ofHours(3))));
+        var result =
+                service.evaluate(
+                        tx("STREAMING PLUS", "15.99", "USD", T0),
+                        tx("STREAMING PLUS", "15.99", "USD", T0.plus(Duration.ofHours(3))));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.MANUAL_REVIEW);
     }
 
     @Test
     void exactlyOneHourApartIsStillSupported() {
-        var result = service.evaluate(tx("CAFE", "1", "USD", T0), tx("CAFE", "1", "USD", T0.plus(Duration.ofHours(1))));
+        var result =
+                service.evaluate(
+                        tx("CAFE", "1", "USD", T0),
+                        tx("CAFE", "1", "USD", T0.plus(Duration.ofHours(1))));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.SUPPORTED);
     }
 
     @Test
     void outsideReviewWindowIsNotSupported() {
-        var result = service.evaluate(tx("CAFE", "1", "USD", T0), tx("CAFE", "1", "USD", T0.plus(Duration.ofDays(3))));
+        var result =
+                service.evaluate(
+                        tx("CAFE", "1", "USD", T0),
+                        tx("CAFE", "1", "USD", T0.plus(Duration.ofDays(3))));
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.NOT_SUPPORTED);
     }
 
     @Test
     void reversedCandidateIsNotSupported() {
-        var candidate = builder("CAFE", "1", "USD", T0.plusSeconds(60)).status(TransactionStatus.REVERSED).build();
+        var candidate =
+                builder("CAFE", "1", "USD", T0.plusSeconds(60))
+                        .status(TransactionStatus.REVERSED)
+                        .build();
 
         var result = service.evaluate(tx("CAFE", "1", "USD", T0), candidate);
 
@@ -103,8 +133,12 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void sameReferenceWithEqualValuesIsConfirmedDuplicate() {
-        var disputed = builder("MERCADO CENTRAL", "87500", "COP", T0).reference("SYN-REF-0013").build();
-        var candidate = builder("MERCADO CENTRAL", "87500.0000", "COP", T0).reference("syn-ref-0013 ").build();
+        var disputed =
+                builder("MERCADO CENTRAL", "87500", "COP", T0).reference("SYN-REF-0013").build();
+        var candidate =
+                builder("MERCADO CENTRAL", "87500.0000", "COP", T0)
+                        .reference("syn-ref-0013 ")
+                        .build();
 
         var result = service.evaluate(disputed, candidate);
 
@@ -114,9 +148,12 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void sameReferenceConfirmsDuplicateRegardlessOfTime() {
-        var disputed = builder("MERCADO CENTRAL", "87500", "COP", T0).reference("SYN-REF-0013").build();
-        var candidate = builder("MERCADO CENTRAL", "87500", "COP", T0.plus(Duration.ofDays(3)))
-                .reference("SYN-REF-0013").build();
+        var disputed =
+                builder("MERCADO CENTRAL", "87500", "COP", T0).reference("SYN-REF-0013").build();
+        var candidate =
+                builder("MERCADO CENTRAL", "87500", "COP", T0.plus(Duration.ofDays(3)))
+                        .reference("SYN-REF-0013")
+                        .build();
 
         var result = service.evaluate(disputed, candidate);
 
@@ -125,13 +162,16 @@ class DuplicateMatchingServiceTest {
 
     @Test
     void sameReferenceWithHighValueStillGoesToManualReview() {
-        var disputed = builder("TECNO MUNDO", "4800000", "COP", T0).reference("SYN-REF-0015").build();
-        var candidate = builder("TECNO MUNDO", "4800000", "COP", T0).reference("SYN-REF-0015").build();
+        var disputed =
+                builder("TECNO MUNDO", "4800000", "COP", T0).reference("SYN-REF-0015").build();
+        var candidate =
+                builder("TECNO MUNDO", "4800000", "COP", T0).reference("SYN-REF-0015").build();
 
         var result = service.evaluate(disputed, candidate);
 
         assertThat(result.outcome()).isEqualTo(AssessmentOutcome.MANUAL_REVIEW);
-        assertThat(result.explanation()).contains("Probable duplicate", "SYN-REF-0015", "high-value");
+        assertThat(result.explanation())
+                .contains("Probable duplicate", "SYN-REF-0015", "high-value");
     }
 
     @Test
@@ -147,7 +187,11 @@ class DuplicateMatchingServiceTest {
     @Test
     void sameReferenceOnReversedCandidateIsNotSupported() {
         var disputed = builder("CAFE", "1", "USD", T0).reference("SYN-1").build();
-        var candidate = builder("CAFE", "1", "USD", T0).reference("SYN-1").status(TransactionStatus.REVERSED).build();
+        var candidate =
+                builder("CAFE", "1", "USD", T0)
+                        .reference("SYN-1")
+                        .status(TransactionStatus.REVERSED)
+                        .build();
 
         var result = service.evaluate(disputed, candidate);
 
@@ -174,13 +218,14 @@ class DuplicateMatchingServiceTest {
                 .isEqualTo(DuplicateMatchingService.MerchantMatch.NONE);
     }
 
-    private static CardTransaction tx(String merchant, String amount, String currency, Instant occurredAt) {
+    private static CardTransaction tx(
+            String merchant, String amount, String currency, Instant occurredAt) {
         return builder(merchant, amount, currency, occurredAt).build();
     }
 
     /** Each transaction gets its own reference unless the test overrides it. */
-    private static CardTransaction.CardTransactionBuilder builder(String merchant, String amount, String currency,
-                                                                  Instant occurredAt) {
+    private static CardTransaction.CardTransactionBuilder builder(
+            String merchant, String amount, String currency, Instant occurredAt) {
         return CardTransaction.builder()
                 .transactionId(UUID.randomUUID())
                 .customerId(CUSTOMER)

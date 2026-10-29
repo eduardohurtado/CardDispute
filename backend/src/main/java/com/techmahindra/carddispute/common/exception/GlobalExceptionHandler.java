@@ -1,7 +1,7 @@
 package com.techmahindra.carddispute.common.exception;
 
-import com.techmahindra.carddispute.common.web.CorrelationId;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-import java.util.List;
+import com.techmahindra.carddispute.common.web.CorrelationId;
+
+import lombok.extern.slf4j.Slf4j;
 
 /** Maps exceptions to RFC 9457 Problem Details ({@code application/problem+json}). */
 @Slf4j
@@ -29,7 +31,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
-        return problem(HttpStatus.CONFLICT, "The dispute was modified concurrently, please retry",
+        return problem(
+                HttpStatus.CONFLICT,
+                "The dispute was modified concurrently, please retry",
                 "CONCURRENT_MODIFICATION");
     }
 
@@ -41,16 +45,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {
         log.error("Unexpected error", ex);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected technical error", "TECHNICAL_ERROR");
+        return problem(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected technical error", "TECHNICAL_ERROR");
     }
 
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
-            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
         ProblemDetail problem = ex.getBody();
-        List<FieldViolation> violations = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> new FieldViolation(error.getField(), error.getDefaultMessage()))
-                .toList();
+        List<FieldViolation> violations =
+                ex.getBindingResult().getFieldErrors().stream()
+                        .map(
+                                error ->
+                                        new FieldViolation(
+                                                error.getField(), error.getDefaultMessage()))
+                        .toList();
         problem.setDetail("Request validation failed");
         problem.setProperty("errorCode", "VALIDATION_FAILED");
         problem.setProperty("violations", violations);
@@ -65,6 +77,5 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
-    public record FieldViolation(String field, String message) {
-    }
+    public record FieldViolation(String field, String message) {}
 }

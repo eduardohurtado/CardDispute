@@ -4,8 +4,8 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Business state machine of a dispute (owned by the dispute module, not by Camunda).
- * The "open" statuses must match the filtered unique index {@code UX_dispute_case_active_transaction}.
+ * Business state machine of a dispute (owned by the dispute module, not by Camunda). The "open"
+ * statuses must match the filtered unique index {@code UX_dispute_case_active_transaction}.
  */
 public enum DisputeStatus {
     SUBMITTED,

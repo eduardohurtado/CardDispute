@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261030142847
+      author: juliann1285
+      comment: Allow FAILED status for exhausted outbox publication attempts
+      changes:
+        - sqlFile:
+            path: ../sql/007-Notification-outbox-status.sql
+            relativeToChangelogFile: true
+            splitStatements: false

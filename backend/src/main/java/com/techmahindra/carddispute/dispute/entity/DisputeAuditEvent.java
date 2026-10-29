@@ -1,5 +1,8 @@
 package com.techmahindra.carddispute.dispute.entity;
 
+import java.time.Instant;
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,12 +11,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.Instant;
-import java.util.UUID;
 
 /** Business audit record (append-only). Camunda history is not the banking audit trail. */
 @Entity
@@ -54,9 +55,15 @@ public class DisputeAuditEvent {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    public static DisputeAuditEvent of(UUID disputeId, AuditEventType eventType, DisputeStatus oldStatus,
-                                       DisputeStatus newStatus, String actorId, String correlationId,
-                                       String details, Instant occurredAt) {
+    public static DisputeAuditEvent of(
+            UUID disputeId,
+            AuditEventType eventType,
+            DisputeStatus oldStatus,
+            DisputeStatus newStatus,
+            String actorId,
+            String correlationId,
+            String details,
+            Instant occurredAt) {
         DisputeAuditEvent event = new DisputeAuditEvent();
         event.disputeId = disputeId;
         event.eventType = eventType;

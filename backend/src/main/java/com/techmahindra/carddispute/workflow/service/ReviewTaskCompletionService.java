@@ -1,4 +1,3 @@
-
 package com.techmahindra.carddispute.workflow.service;
 
 import com.techmahindra.carddispute.security.AuthenticatedUser;
@@ -11,6 +10,5 @@ public interface ReviewTaskCompletionService {
             String taskId,
             CompleteManualReviewRequest request,
             AuthenticatedUser analyst,
-            String correlationId
-    );
+            String correlationId);
 }

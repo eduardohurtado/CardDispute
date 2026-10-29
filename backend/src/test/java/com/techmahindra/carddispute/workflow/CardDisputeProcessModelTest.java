@@ -1,5 +1,9 @@
 package com.techmahindra.carddispute.workflow;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.InputStream;
+
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.BoundaryEvent;
@@ -10,10 +14,6 @@ import org.camunda.bpm.model.bpmn.instance.UserTask;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.InputStream;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
 /** Structural checks of bpmn/card-dispute.bpmn; parses the model only (no engine, no database). */
 class CardDisputeProcessModelTest {
 
@@ -21,7 +21,8 @@ class CardDisputeProcessModelTest {
 
     @BeforeAll
     static void readModel() throws Exception {
-        try (InputStream bpmn = CardDisputeProcessModelTest.class.getResourceAsStream("/bpmn/card-dispute.bpmn")) {
+        try (InputStream bpmn =
+                CardDisputeProcessModelTest.class.getResourceAsStream("/bpmn/card-dispute.bpmn")) {
             model = Bpmn.readModelFromStream(bpmn);
         }
     }
@@ -32,7 +33,8 @@ class CardDisputeProcessModelTest {
         ServiceTask markAwaiting = model.getModelElementById("Task_MarkAwaitingAnalyst");
 
         assertThat(manualReview.getTarget().getId()).isEqualTo("Task_MarkAwaitingAnalyst");
-        assertThat(markAwaiting.getCamundaDelegateExpression()).isEqualTo("${markDisputeAwaitingAnalystDelegate}");
+        assertThat(markAwaiting.getCamundaDelegateExpression())
+                .isEqualTo("${markDisputeAwaitingAnalystDelegate}");
         assertThat(singleTarget(markAwaiting)).isEqualTo("Task_ManualReview");
     }
 
@@ -48,9 +50,11 @@ class CardDisputeProcessModelTest {
     void manualResolutionRunsInTheTaskCompletionCommand() {
         ServiceTask resolve = model.getModelElementById("Task_ResolveManualReview");
 
-        // Synchronous, so a failed resolution rolls back the task completion and reaches the analyst as an error
+        // Synchronous, so a failed resolution rolls back the task completion and reaches the
+        // analyst as an error
         assertThat(resolve.isCamundaAsyncBefore()).isTrue();
-        assertThat(resolve.getCamundaDelegateExpression()).isEqualTo("${resolveManualReviewDelegate}");
+        assertThat(resolve.getCamundaDelegateExpression())
+                .isEqualTo("${resolveManualReviewDelegate}");
     }
 
     @Test
@@ -61,7 +65,8 @@ class CardDisputeProcessModelTest {
         assertThat(deadline.cancelActivity()).isFalse();
         assertThat(singleTarget(deadline)).isEqualTo("Task_MarkManualReviewOverdue");
         ServiceTask overdue = model.getModelElementById("Task_MarkManualReviewOverdue");
-        assertThat(overdue.getCamundaDelegateExpression()).isEqualTo("${markManualReviewOverdueDelegate}");
+        assertThat(overdue.getCamundaDelegateExpression())
+                .isEqualTo("${markManualReviewOverdueDelegate}");
     }
 
     private static String singleTarget(FlowNode node) {

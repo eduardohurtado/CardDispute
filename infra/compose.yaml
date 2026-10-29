@@ -53,6 +53,60 @@ services:
     restart: unless-stopped
 
   # =========================================
+  # RABBITMQ TOPOLOGY INITIALIZATION
+  # =========================================
+  rabbitmq-topology:
+    image: curlimages/curl:8.12.1
+    container_name: bank-poc-rabbitmq-topology
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:?RabbitMQ user required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RabbitMQ password required}
+
+    entrypoint: ["/bin/sh", "-ec"]
+
+    command:
+      - |
+        AUTH="$${RABBITMQ_USER}:$${RABBITMQ_PASSWORD}"
+        API="http://rabbitmq:15672/api"
+
+        echo "Creating RabbitMQ exchange..."
+
+        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+          -u "$$AUTH" \
+          -H "Content-Type: application/json" \
+          -X PUT \
+          "$$API/exchanges/%2F/card-dispute.events" \
+          -d '{"type":"topic","durable":true,"auto_delete":false,"internal":false,"arguments":{}}'
+
+        echo "Creating RabbitMQ queue..."
+
+        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+          -u "$$AUTH" \
+          -H "Content-Type: application/json" \
+          -X PUT \
+          "$$API/queues/%2F/card-dispute.notifications" \
+          -d '{"durable":true,"auto_delete":false,"arguments":{"x-queue-type":"classic"}}'
+
+        echo "Creating RabbitMQ binding..."
+
+        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+          -u "$$AUTH" \
+          -H "Content-Type: application/json" \
+          -X POST \
+          "$$API/bindings/%2F/e/card-dispute.events/q/card-dispute.notifications" \
+          -d '{"routing_key":"dispute.#","arguments":{}}'
+
+        echo "RabbitMQ topology initialized successfully."
+
+
+    restart: "no"
+
+  # =========================================
   # NESTJS NOTIFICATION WORKER
   # =========================================
   notifications:

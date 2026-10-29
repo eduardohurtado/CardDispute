@@ -1,15 +1,19 @@
-
 package com.techmahindra.carddispute.dispute.service.impl;
+
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
 
 import com.techmahindra.carddispute.dispute.entity.DecisionType;
 import com.techmahindra.carddispute.dispute.service.DisputeLifecycleService;
 import com.techmahindra.carddispute.dispute.service.ManualReviewDecisionService;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
-/** Workflow-facing entry point for analyst decisions; the business rules live in DisputeLifecycleService. */
+/**
+ * Workflow-facing entry point for analyst decisions; the business rules live in
+ * DisputeLifecycleService.
+ */
 @Service
 @RequiredArgsConstructor
 public class ManualReviewDecisionServiceImpl implements ManualReviewDecisionService {
@@ -18,11 +22,7 @@ public class ManualReviewDecisionServiceImpl implements ManualReviewDecisionServ
 
     @Override
     public void validateManualDecision(
-            UUID disputeId,
-            DecisionType decision,
-            String comment,
-            String analystUsername
-    ) {
+            UUID disputeId, DecisionType decision, String comment, String analystUsername) {
         lifecycleService.validateAnalystDecision(disputeId, decision, comment, analystUsername);
     }
 
@@ -32,8 +32,8 @@ public class ManualReviewDecisionServiceImpl implements ManualReviewDecisionServ
             DecisionType decision,
             String comment,
             String analystUsername,
-            String correlationId
-    ) {
-        lifecycleService.resolveByAnalyst(disputeId, decision, comment, analystUsername, correlationId);
+            String correlationId) {
+        lifecycleService.resolveByAnalyst(
+                disputeId, decision, comment, analystUsername, correlationId);
     }
 }

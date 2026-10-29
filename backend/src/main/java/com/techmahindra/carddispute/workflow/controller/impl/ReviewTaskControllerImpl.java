@@ -1,5 +1,9 @@
-
 package com.techmahindra.carddispute.workflow.controller.impl;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.techmahindra.carddispute.common.exception.ResourceNotFoundException;
 import com.techmahindra.carddispute.common.web.CorrelationId;
@@ -14,43 +18,29 @@ import com.techmahindra.carddispute.workflow.service.ReviewTaskQueryService;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
-
 @RestController
 @RequiredArgsConstructor
-public class ReviewTaskControllerImpl
-        implements ReviewTaskController {
+public class ReviewTaskControllerImpl implements ReviewTaskController {
 
     private final ReviewTaskQueryService reviewTaskQueryService;
     private final ReviewTaskCompletionService reviewTaskCompletionService;
 
     @Override
-    public PageResponse<ReviewTaskResponse> listPendingTasks(
-            int page,
-            int size) {
+    public PageResponse<ReviewTaskResponse> listPendingTasks(int page, int size) {
 
         if (page < 0) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "page must be greater than or equal to zero"
-            );
+                    HttpStatus.BAD_REQUEST, "page must be greater than or equal to zero");
         }
 
         if (size < 1 || size > 100) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "size must be between 1 and 100"
-            );
+                    HttpStatus.BAD_REQUEST, "size must be between 1 and 100");
         }
 
         if ((long) page * size > Integer.MAX_VALUE) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Requested page offset exceeds supported range"
-            );
+                    HttpStatus.BAD_REQUEST, "Requested page offset exceeds supported range");
         }
 
         return reviewTaskQueryService.findPendingTasks(page, size);
@@ -61,30 +51,20 @@ public class ReviewTaskControllerImpl
 
         return reviewTaskQueryService
                 .findPendingTaskById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "REVIEW_TASK_NOT_FOUND",
-                        "Pending review task not found"
-                ));
+                .orElseThrow(
+                        () ->
+                                new ResourceNotFoundException(
+                                        "REVIEW_TASK_NOT_FOUND", "Pending review task not found"));
     }
-
 
     @Override
     public ResponseEntity<ManualReviewCompletionResponse> completeManualReview(
-            String taskId,
-            CompleteManualReviewRequest request,
-            AuthenticatedUser analyst) {
+            String taskId, CompleteManualReviewRequest request, AuthenticatedUser analyst) {
 
         ManualReviewCompletionResponse response =
                 reviewTaskCompletionService.complete(
-                        taskId,
-                        request,
-                        analyst,
-                        CorrelationId.current()
-                );
+                        taskId, request, analyst, CorrelationId.current());
 
-        return ResponseEntity
-                .accepted()
-                .body(response);
+        return ResponseEntity.accepted().body(response);
     }
-
 }
