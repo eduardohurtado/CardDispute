@@ -1,9 +1,10 @@
 import { Fact } from '@/components/ui/Fact';
 import { Facts } from '@/components/ui/Facts';
-import type { Dispute, DisputeTransaction } from '@/types/dispute';
-import { formatAmount, formatDateTime } from '@/utils/format';
+import type { Dispute } from '@/types/dispute';
+import { formatDateTime } from '@/utils/format';
 import { reasonCodeLabel } from './meta';
 import { StatusBadge } from './StatusBadge';
+import { TransactionFacts } from './TransactionFacts';
 
 /** Case metadata, the disputed transaction and the suspected duplicate. */
 export function DisputeFacts({ dispute }: { dispute: Dispute }) {
@@ -49,20 +50,5 @@ export function DisputeFacts({ dispute }: { dispute: Dispute }) {
         </section>
       ) : null}
     </div>
-  );
-}
-
-function TransactionFacts({ transaction }: { transaction: DisputeTransaction }) {
-  return (
-    <>
-      <Fact label="Merchant">{transaction.merchantName}</Fact>
-      <Fact label="Amount">{formatAmount(transaction.amount, transaction.currency)}</Fact>
-      <Fact label="Card">•••• {transaction.cardLast4}</Fact>
-      <Fact label="Status">{transaction.status}</Fact>
-      <Fact label="Posted">
-        {transaction.postedAt ? formatDateTime(transaction.postedAt) : 'Not posted yet'}
-      </Fact>
-      <Fact label="Occurred">{formatDateTime(transaction.occurredAt)}</Fact>
-    </>
   );
 }

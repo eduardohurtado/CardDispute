@@ -1,22 +1,23 @@
-import { useState, type ChangeEvent } from 'react';
+import { type ChangeEvent, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DEMO_USERS, findDemoUser, type DemoUser } from '@/config/demoUsers';
-import { paths } from '@/routes/paths';
+import { landingFor, selectSession } from '@/store/slices/auth/authSlice';
 import { useAppDispatch, useAppSelector } from '@/store';
-import { selectUsername } from '@/store/slices/session/sessionSlice';
 import { switchDemoUserAndReset } from '@/store/slices/session/switchDemoUserAndReset';
 
 /**
  * Switches the synthetic demo user the app acts as. The backend still checks
  * identity and ownership on every request; this only picks the credentials.
  *
- * A switch asks for confirmation, then soft-resets the app on the home page.
+ * A switch asks for confirmation, then soft-resets the app on the new user's
+ * landing page.
  */
 export function DemoUserPicker() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const username = useAppSelector(selectUsername);
+  const session = useAppSelector(selectSession);
+  const username = session.username;
   const [pendingUser, setPendingUser] = useState<DemoUser>();
 
   const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -33,8 +34,9 @@ export function DemoUserPicker() {
     }
     setPendingUser(undefined);
     // Leave the current page first, so it does not refetch with the new
-    // credentials while it is still on screen.
-    await navigate(paths.home, { replace: true });
+    // credentials while it is still on screen. Navigate to the new user's
+    // landing page so the role-correct page loads immediately.
+    await navigate(landingFor(pendingUser.role), { replace: true });
     dispatch(switchDemoUserAndReset(pendingUser.username));
   };
 
@@ -64,7 +66,7 @@ export function DemoUserPicker() {
           onCancel={() => setPendingUser(undefined)}
         >
           <p>
-            You will go back to the home page, and everything from this session is cleared: open
+            You will go to your workspace, and everything from this session is cleared: open
             pages, form entries, loaded data and notifications.
           </p>
         </ConfirmDialog>

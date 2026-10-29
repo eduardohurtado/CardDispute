@@ -43,7 +43,11 @@ export default function DisputeDetailPage() {
     error,
     refetch,
   } = useGetDisputeQuery(disputeId, { skip: !id, ...polling });
-  const { data: events, isLoading: isTimelineLoading } = useGetDisputeTimelineQuery(disputeId, {
+  const {
+    data: events,
+    isLoading: isTimelineLoading,
+    isError: isTimelineError,
+  } = useGetDisputeTimelineQuery(disputeId, {
     skip: !id,
     ...polling,
   });
@@ -129,7 +133,7 @@ export default function DisputeDetailPage() {
           <h2 id="case-decision-heading" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Decision
           </h2>
-          <DisputeDecisionSummary dispute={dispute} />
+          <DisputeDecisionSummary decision={dispute.decision} />
         </section>
       </div>
 
@@ -149,6 +153,11 @@ export default function DisputeDetailPage() {
             <Spinner label="Loading history" />
             <span>Loading the history…</span>
           </div>
+        ) : isTimelineError ? (
+          <StateBlock
+            title="History is not available yet"
+            description="This backend does not expose the case history endpoint yet."
+          />
         ) : (
           <DisputeTimeline events={events ?? []} />
         )}

@@ -51,6 +51,6 @@ describe('buildLifecycle', () => {
     const step = buildLifecycle(rejected).find((candidate) => candidate.phase === 'decided');
 
     expect(step?.label).toBe('Rejected');
-    expect(step?.state).toBe('current');
+    expect(step?.state).toBe('done');
   });
 });

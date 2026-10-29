@@ -18,8 +18,11 @@ export function DisputeTimeline({ events }: { events: TimelineEvent[] }) {
 
   return (
     <Timeline aria-label="Case timeline">
-      {events.map((event) => (
-        <TimelineItem key={event.eventId} tone={timelineEventTone(event)}>
+      {events.map((event, index) => (
+        <TimelineItem
+          key={`${event.eventType}-${event.newStatus}-${event.actorId}-${index}`}
+          tone={timelineEventTone(event)}
+        >
           <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{timelineEventTitle(event)}</p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             <time dateTime={event.occurredAt}>{formatDateTime(event.occurredAt)}</time>

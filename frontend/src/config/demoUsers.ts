@@ -21,16 +21,22 @@ export interface DemoUser {
 
 export const DEMO_USERS: readonly DemoUser[] = [
   {
-    username: 'customer01',
+    username: 'customer001',
     displayName: 'Demo Customer 01',
     role: 'CUSTOMER',
     mockCustomerId: '11111111-1111-4111-8111-111111111111',
   },
   {
-    username: 'customer02',
+    username: 'customer002',
     displayName: 'Demo Customer 02',
     role: 'CUSTOMER',
     mockCustomerId: '99999999-9999-4999-8999-999999999999',
+  },
+  {
+    username: 'analyst001',
+    displayName: 'Analyst 01',
+    role: 'DISPUTE_ANALYST',
+    mockCustomerId: '',
   },
 ];
 

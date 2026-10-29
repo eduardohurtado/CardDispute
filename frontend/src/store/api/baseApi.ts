@@ -1,25 +1,57 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { basicAuthHeader } from '@/config/demoUsers';
-import type { SessionState } from '@/store/slices/session/sessionSlice';
+import {
+  createApi,
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+} from '@reduxjs/toolkit/query/react';
+import { isMockApi } from '@/config/apiMode';
+import { basicAuthorization, DEMO_CUSTOMER_HEADER } from '@/config/demoSession';
+import { selectSession, signedOut, type AuthState } from '@/store/slices/auth/authSlice';
 
 /**
  * Single RTK Query API for the whole app.
  * Features add their endpoints with `baseApi.injectEndpoints({ ... })`
  * and declare any cache tags they use in `tagTypes` below.
  */
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: import.meta.env.VITE_API_URL ?? '/api',
+  prepareHeaders: (headers, { getState }) => {
+    const session = selectSession(getState() as { auth: AuthState });
+
+    if (session) {
+      // HTTP Basic: the backend has no token endpoint, so the credentials
+      // travel on every request.
+      headers.set('Authorization', basicAuthorization(session.username, session.password));
+    }
+
+    if (isMockApi && session?.customerId) {
+      // The mock API has no principal, so it scopes data from this header.
+      headers.set(DEMO_CUSTOMER_HEADER, session.customerId);
+    }
+
+    return headers;
+  },
+});
+
+/** Clears an expired session: any 401 sends the user back to the login screen. */
+const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+  args,
+  api,
+  extraOptions,
+) => {
+  const result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401) {
+    api.dispatch(signedOut());
+  }
+
+  return result;
+};
+
 export const baseApi = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL ?? '/api',
-    prepareHeaders: (headers, { getState }) => {
-      // The backend authenticates the synthetic demo users with HTTP Basic and
-      // takes the customer from the principal. Typed locally to avoid a
-      // circular import with store.ts.
-      const { session } = getState() as { session: SessionState };
-      headers.set('Authorization', basicAuthHeader(session.username));
-      return headers;
-    },
-  }),
-  tagTypes: ['Dispute', 'Transaction'],
+  baseQuery: baseQueryWithReauth,
+  tagTypes: ["Transaction", 'Dispute', 'AnalystTask'],
   endpoints: () => ({}),
 });

@@ -68,6 +68,18 @@ export interface DisputeDecision {
   decidedAt: string;
 }
 
+/** Row of the "My Disputes" list. The backend returns a projection, not the full case. */
+export interface DisputeListItem {
+  disputeId: string;
+  transactionId: string;
+  merchantName: string;
+  amount: number;
+  currency: string;
+  status: DisputeStatus;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
 /** A customer dispute case (blueprint 7.2 `dispute_case`). */
 export interface Dispute {
   /** UUID. This is the case reference shown to the customer. */
@@ -89,19 +101,17 @@ export interface Dispute {
 
 /** One entry of the business audit trail (blueprint 7.2 `dispute_audit_event`). */
 export interface TimelineEvent {
-  eventId: string;
+  actorId: string;
+  details: string | null;
   eventType: TimelineEventType;
   oldStatus: DisputeStatus | null;
   newStatus: DisputeStatus | null;
-  actorId: string;
-  correlationId: string;
-  details: string | null;
   occurredAt: string;
 }
 
-/** Envelope for paged list endpoints. */
+/** Envelope for paged list endpoints, as the backend serializes a Spring `Page`. */
 export interface PagedResponse<T> {
-  items: T[];
+  content: T[];
   page: number;
   size: number;
   totalElements: number;

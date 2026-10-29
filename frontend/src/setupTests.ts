@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { resetMockDb } from '@/mocks/handlers';
+import { resetDemoState } from '@/mocks/fixtures';
 import { server } from '@/mocks/server';
 import { createMatchMedia } from '@/test/matchMedia';
 
@@ -24,10 +25,13 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   resetMockDb();
+  // A previous login test must not leak its demo session.
+  sessionStorage.clear();
   // Theme state lives on <html> and in storage, so reset it between tests.
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
   document.documentElement.style.colorScheme = '';
   window.matchMedia = createMatchMedia(false).matchMedia;
+  resetDemoState();
 });
 afterAll(() => server.close());
