@@ -20,7 +20,7 @@ const DECISION_OPTIONS: { value: DisputeDecisionType; label: string; hint: strin
 
 export interface AnalystDecisionFormProps {
   /** Called with the decision and its rationale. */
-  onSubmit: (values: AnalystDecisionRequest) => void;
+  onSubmit: (values: Omit<AnalystDecisionRequest,"disputeId">) => void;
   /** True while the decision is being sent. */
   isSubmitting?: boolean;
   /** Error reported by the server, for example a rejected rationale. */

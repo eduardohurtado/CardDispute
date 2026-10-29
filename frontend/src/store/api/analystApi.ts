@@ -1,5 +1,3 @@
-import { DEMO_ANALYST_HEADER, DEMO_ANALYST_ID } from "@/config/demoSession";
-import type { PageResponse } from "@/types/dispute";
 import type {
   AnalystDecisionRequest,
   AnalystTask,
@@ -8,6 +6,7 @@ import type {
   ReviewTaskSummary,
 } from "@/types/analyst";
 import { baseApi } from "./baseApi";
+import { PageResponse } from "@/types/api";
 
 /**
  * Analyst workspace endpoints.
@@ -15,13 +14,6 @@ import { baseApi } from "./baseApi";
 
 /** Tag of the work queue list. */
 export const ANALYST_TASK_LIST_TAG = "LIST";
-
-/**
- * Analyst identity header.
- */
-function analystHeaders(): Record<string, string> {
-  return { [DEMO_ANALYST_HEADER]: DEMO_ANALYST_ID };
-}
 
 export const analystApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -56,7 +48,7 @@ export const analystApi = baseApi.injectEndpoints({
         { type: "AnalystTask", id: ANALYST_TASK_LIST_TAG },
         "Dispute",
       ],
-      async onQueryStarted({ taskId }, { dispatch, queryFulfilled }) {
+      async onQueryStarted({}, { queryFulfilled }) {
         try {
           await queryFulfilled;
         } catch {

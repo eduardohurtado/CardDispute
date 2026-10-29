@@ -3,14 +3,7 @@
  * Aligned to backend ReviewTaskController contract.
  */
 import type {
-  DisputeAssessmentOutcome,
-  DisputeDecision,
-  DisputeDecisionType,
-  DisputeReasonCode,
-  DisputeStatus,
-  DisputeTransaction,
-  PagedResponse,
-  TimelineEvent,
+  DisputeAssessmentOutcome, DisputeDecisionType, PagedResponse
 } from "@/types/dispute";
 
 export const ANALYST_QUEUES = ["PENDING", "DUE_SOON"] as const;
@@ -41,21 +34,7 @@ export interface ReviewTaskSummary {
 export type AnalystTaskSummary = ReviewTaskSummary;
 
 export interface AnalystTask extends ReviewTaskSummary {
-  status?: DisputeStatus | string;
-  reasonCode?: DisputeReasonCode;
-  description?: string | null;
-  merchantName?: string;
-  amount?: number;
-  currency?: string;
-  assessmentOutcome?: DisputeAssessmentOutcome | null;
-  matchKind?: MatchKind | string | null;
-  submittedAt?: string;
-  dueAt?: string;
-  transaction?: DisputeTransaction;
-  candidateTransaction?: DisputeTransaction | null;
-  assessment?: AnalystAssessment | null;
-  decision?: DisputeDecision | null;
-  timeline?: TimelineEvent[];
+  
 }
 
 /** Paged work queue */

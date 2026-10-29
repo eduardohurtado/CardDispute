@@ -125,9 +125,16 @@ function stateChangeTitle(event: TimelineEvent): string {
 
 /** Colour of the marker for an audit event. */
 export function timelineEventTone(event: TimelineEvent): Tone {
+  if (event.newStatus === 'RESOLVED_DUPLICATE_SUPPORTED') return 'success';
+  if (event.newStatus === 'RESOLVED_NOT_SUPPORTED') return 'success';
+  if (event.newStatus === 'REJECTED_INELIGIBLE') return 'danger';
+  if (event.newStatus === 'TIMEOUT_REVIEW_REQUIRED') return 'danger';
   if (event.eventType === 'TIMEOUT') return 'danger';
   if (event.eventType === 'REVIEW_ASSIGNED' || event.eventType === 'REVIEW_COMPLETED') return 'warning';
   if (event.eventType === 'CREATED') return 'info';
+  if (event.eventType === 'DECIDED' && event.newStatus) {
+    return disputeStatusMeta[event.newStatus]?.tone ?? 'neutral';
+  }
   if (event.newStatus) return disputeStatusMeta[event.newStatus].tone;
   return 'neutral';
 }

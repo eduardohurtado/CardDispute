@@ -12,12 +12,12 @@ import { DISPUTE_STATUSES, type TimelineEvent } from '@/types/dispute';
 
 function timelineEvent(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
   return {
-    eventId: 'c3000000-0000-4000-8000-000000000001',
+
     eventType: 'STATE_CHANGED',
     oldStatus: 'SUBMITTED',
     newStatus: 'IN_REVIEW',
     actorId: 'SYSTEM',
-    correlationId: 'corr-01',
+
     details: null,
     occurredAt: '2026-10-10T09:00:00Z',
     ...overrides,

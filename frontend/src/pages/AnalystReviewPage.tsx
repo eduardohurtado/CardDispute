@@ -133,15 +133,7 @@ export default function AnalystReviewPage() {
           </div>
         ) : dispute && !isDisputeError ? (
           <DisputeFacts dispute={dispute} />
-        ) : task.transaction ? (
-          <div className="rounded-md border border-gray-200 p-4 text-sm text-gray-600">
-            Dispute details are not available.
-          </div>
-        ) : (
-          <div className="rounded-md border border-gray-200 p-4 text-sm text-gray-600">
-            Dispute details are not available for this task.
-          </div>
-        )}
+        ) : null}
       </section>
     </section>
   );

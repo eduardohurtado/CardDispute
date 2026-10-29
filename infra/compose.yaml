@@ -1,4 +1,3 @@
-
 name: bank-poc
 
 services:
@@ -21,7 +20,6 @@ services:
       - sqlserver_data:/var/opt/mssql
 
     restart: unless-stopped
-
 
   # =========================================
   # RABBITMQ
@@ -54,7 +52,6 @@ services:
 
     restart: unless-stopped
 
-  
   # =========================================
   # NESTJS NOTIFICATION WORKER
   # =========================================
@@ -82,7 +79,6 @@ services:
 
     restart: unless-stopped
 
-
   # =========================================
   # DATABASE INITIALIZATION
   # =========================================
@@ -108,6 +104,20 @@ services:
       - /init.sh
 
     restart: "no"
+
+  # =========================================
+  # React SPA
+  # =========================================
+  frontend:
+    container_name: bank-poc-frontend
+    build:
+      context: ../frontend
+      dockerfile: ../frontend/Dockerfile
+      args:
+        VITE_API_URL: ${BACKEND_API_BASE_URL:-http://backend:8080/api}
+    ports:
+      - 3000:3000
+    restart: unless-stopped
 
 volumes:
   sqlserver_data:

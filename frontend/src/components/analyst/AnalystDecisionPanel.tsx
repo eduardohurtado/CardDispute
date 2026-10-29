@@ -18,7 +18,7 @@ export function AnalystDecisionPanel({ task }: AnalystDecisionPanelProps) {
   const [decidedStatus, setDecidedStatus] = useState<string | null>(null);
   const [submitDecision, { isLoading, error }] = useSubmitAnalystDecisionMutation();
 
-  async function handleSubmit(values: AnalystDecisionRequest) {
+  async function handleSubmit(values: Omit<AnalystDecisionRequest,"disputeId">) {
     try {
       await submitDecision({ taskId: task.taskId, disputeId: task.disputeId, ...values }).unwrap();
       const decision: DisputeDecision = {

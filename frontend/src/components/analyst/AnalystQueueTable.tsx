@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { Badge } from '@/components/ui/Badge';
 import { analystTaskPath } from '@/routes/paths';
 import type { AnalystTask } from '@/types/analyst';
-import { formatAmount, formatDateTime } from '@/utils/format';
+import { formatDateTime } from '@/utils/format';
 
 export interface AnalystQueueTableProps {
   tasks: AnalystTask[];
@@ -18,12 +18,6 @@ export function AnalystQueueTable({ tasks }: AnalystQueueTableProps) {
           <tr>
             <th scope="col" className="py-2 pr-4 font-medium">
               Case
-            </th>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Disputed
-            </th>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Suspected duplicate
             </th>
             <th scope="col" className="px-4 py-2 font-medium">
               Task
@@ -51,35 +45,6 @@ export function AnalystQueueTable({ tasks }: AnalystQueueTableProps) {
               >
                 {task.disputeId}
               </th>
-              <td className="px-4 py-3">
-                {task.transaction ? (
-                  <div>
-                    <div className="font-medium text-gray-900">{task.transaction.merchantName}</div>
-                    <div className="text-xs text-gray-600">
-                      {formatAmount(task.transaction.amount, task.transaction.currency)}
-                    </div>
-                  </div>
-                ) : task.merchantName && task.amount != null ? (
-                  <div>
-                    <div className="font-medium text-gray-900">{task.merchantName}</div>
-                    <div className="text-xs text-gray-600">{formatAmount(task.amount, task.currency)}</div>
-                  </div>
-                ) : (
-                  '-'
-                )}
-              </td>
-              <td className="px-4 py-3">
-                {task.candidateTransaction ? (
-                  <div>
-                    <div className="font-medium text-gray-900">{task.candidateTransaction.merchantName}</div>
-                    <div className="text-xs text-gray-600">
-                      {formatAmount(task.candidateTransaction.amount, task.candidateTransaction.currency)}
-                    </div>
-                  </div>
-                ) : (
-                  <span className="text-xs text-gray-600">None identified</span>
-                )}
-              </td>
               <td className="px-4 py-3">{task.taskName}</td>
               <td className="px-4 py-3">{task.assignee ?? '-'}</td>
               <td className="px-4 py-3">{task.createdAt ? formatDateTime(task.createdAt) : '-'}</td>
