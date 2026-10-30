@@ -1,14 +1,15 @@
 package com.techmahindra.carddispute.dispute.entity;
 
-import com.techmahindra.carddispute.common.exception.ConflictException;
-import com.techmahindra.carddispute.transaction.service.AssessmentOutcome;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+
+import com.techmahindra.carddispute.common.exception.ConflictException;
+import com.techmahindra.carddispute.transaction.service.AssessmentOutcome;
 
 class DisputeCaseTest {
 
@@ -42,14 +43,18 @@ class DisputeCaseTest {
         for (DisputeStatus target : DisputeStatus.values()) {
             assertThat(DisputeStatus.RESOLVED_NOT_SUPPORTED.canTransitionTo(target)).isFalse();
         }
-        assertThatThrownBy(() -> dispute.transitionTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED, NOW))
+        assertThatThrownBy(
+                        () -> dispute.transitionTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED, NOW))
                 .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void timeoutIsNotTerminal() {
         assertThat(DisputeStatus.TIMEOUT_REVIEW_REQUIRED.isOpen()).isTrue();
-        assertThat(DisputeStatus.TIMEOUT_REVIEW_REQUIRED.canTransitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED)).isTrue();
+        assertThat(
+                        DisputeStatus.TIMEOUT_REVIEW_REQUIRED.canTransitionTo(
+                                DisputeStatus.RESOLVED_NOT_SUPPORTED))
+                .isTrue();
     }
 
     @Test
@@ -63,7 +68,12 @@ class DisputeCaseTest {
     }
 
     private static DisputeCase newDispute() {
-        return DisputeCase.submit(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
+        return DisputeCase.submit(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                ReasonCode.POSSIBLE_DUPLICATE,
+                null,
+                NOW);
     }
 }

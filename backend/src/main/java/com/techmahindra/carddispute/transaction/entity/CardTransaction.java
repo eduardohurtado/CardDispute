@@ -1,20 +1,21 @@
 package com.techmahindra.carddispute.transaction.entity;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.UUID;
 
 /** Synthetic card transaction. Read-only for the POC: rows come from the Liquibase seed. */
 @Entity

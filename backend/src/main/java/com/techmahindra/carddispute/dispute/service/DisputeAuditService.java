@@ -1,21 +1,23 @@
 package com.techmahindra.carddispute.dispute.service;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.techmahindra.carddispute.dispute.dto.TimelineEntryResponse;
 import com.techmahindra.carddispute.dispute.entity.AuditEventType;
 import com.techmahindra.carddispute.dispute.entity.DisputeAuditEvent;
 import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
 import com.techmahindra.carddispute.dispute.repository.DisputeAuditEventRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Business audit trail of a dispute. Each event is written in the same transaction as the change
- * it records, so a rolled-back change leaves no audit entry.
+ * Business audit trail of a dispute. Each event is written in the same transaction as the change it
+ * records, so a rolled-back change leaves no audit entry.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,10 +28,25 @@ public class DisputeAuditService {
     private final DisputeAuditEventRepository auditRepository;
 
     @Transactional(transactionManager = "cardDisputeTransactionManager")
-    public void record(UUID disputeId, AuditEventType eventType, DisputeStatus oldStatus, DisputeStatus newStatus,
-                       String actorId, String correlationId, String details, Instant occurredAt) {
-        auditRepository.save(DisputeAuditEvent.of(disputeId, eventType, oldStatus, newStatus, actorId,
-                correlationId, truncate(details), occurredAt));
+    public void record(
+            UUID disputeId,
+            AuditEventType eventType,
+            DisputeStatus oldStatus,
+            DisputeStatus newStatus,
+            String actorId,
+            String correlationId,
+            String details,
+            Instant occurredAt) {
+        auditRepository.save(
+                DisputeAuditEvent.of(
+                        disputeId,
+                        eventType,
+                        oldStatus,
+                        newStatus,
+                        actorId,
+                        correlationId,
+                        truncate(details),
+                        occurredAt));
     }
 
     @Transactional(transactionManager = "cardDisputeTransactionManager", readOnly = true)

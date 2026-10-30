@@ -1,32 +1,5 @@
 package com.techmahindra.carddispute.dispute.service;
 
-import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
-import com.techmahindra.carddispute.common.exception.ConflictException;
-import com.techmahindra.carddispute.dispute.entity.AuditEventType;
-import com.techmahindra.carddispute.dispute.entity.DecisionSource;
-import com.techmahindra.carddispute.dispute.entity.DecisionType;
-import com.techmahindra.carddispute.dispute.entity.DisputeCase;
-import com.techmahindra.carddispute.dispute.entity.DisputeDecision;
-import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
-import com.techmahindra.carddispute.dispute.entity.ReasonCode;
-import com.techmahindra.carddispute.dispute.repository.DisputeCaseRepository;
-import com.techmahindra.carddispute.dispute.repository.DisputeDecisionRepository;
-import com.techmahindra.carddispute.transaction.entity.CardTransaction;
-import com.techmahindra.carddispute.transaction.service.AssessmentOutcome;
-import com.techmahindra.carddispute.transaction.service.DuplicateMatchingService;
-import com.techmahindra.carddispute.transaction.service.MatchAssessment;
-import com.techmahindra.carddispute.transaction.service.TransactionService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.Optional;
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +15,36 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+
+import com.techmahindra.carddispute.common.exception.BusinessRuleViolationException;
+import com.techmahindra.carddispute.common.exception.ConflictException;
+import com.techmahindra.carddispute.dispute.entity.AuditEventType;
+import com.techmahindra.carddispute.dispute.entity.DecisionSource;
+import com.techmahindra.carddispute.dispute.entity.DecisionType;
+import com.techmahindra.carddispute.dispute.entity.DisputeCase;
+import com.techmahindra.carddispute.dispute.entity.DisputeDecision;
+import com.techmahindra.carddispute.dispute.entity.DisputeStatus;
+import com.techmahindra.carddispute.dispute.entity.ReasonCode;
+import com.techmahindra.carddispute.dispute.repository.DisputeCaseRepository;
+import com.techmahindra.carddispute.dispute.repository.DisputeDecisionRepository;
+import com.techmahindra.carddispute.notification.dto.DisputeResolvedEvent;
+import com.techmahindra.carddispute.notification.service.NotificationOutboxService;
+import com.techmahindra.carddispute.transaction.entity.CardTransaction;
+import com.techmahindra.carddispute.transaction.service.AssessmentOutcome;
+import com.techmahindra.carddispute.transaction.service.DuplicateMatchingService;
+import com.techmahindra.carddispute.transaction.service.MatchAssessment;
+import com.techmahindra.carddispute.transaction.service.TransactionService;
+
 class DisputeLifecycleServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-10-21T10:00:00Z");
@@ -52,6 +55,7 @@ class DisputeLifecycleServiceTest {
     private TransactionService transactionService;
     private DuplicateMatchingService matchingService;
     private DisputeLifecycleService service;
+    private NotificationOutboxService notificationOutboxService;
     private DisputeCase dispute;
 
     @BeforeEach
@@ -61,11 +65,27 @@ class DisputeLifecycleServiceTest {
         auditService = mock(DisputeAuditService.class);
         transactionService = mock(TransactionService.class);
         matchingService = mock(DuplicateMatchingService.class);
-        service = new DisputeLifecycleService(disputeRepository, decisionRepository, auditService,
-                transactionService, matchingService, Clock.fixed(NOW, ZoneOffset.UTC));
+        notificationOutboxService = mock(NotificationOutboxService.class);
 
-        dispute = DisputeCase.submit(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                ReasonCode.POSSIBLE_DUPLICATE, null, NOW);
+        service =
+                new DisputeLifecycleService(
+                        disputeRepository,
+                        decisionRepository,
+                        auditService,
+                        transactionService,
+                        matchingService,
+                        notificationOutboxService,
+                        Clock.fixed(NOW, ZoneOffset.UTC));
+
+        dispute =
+                DisputeCase.submit(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        ReasonCode.POSSIBLE_DUPLICATE,
+                        null,
+                        NOW);
+
         when(disputeRepository.findById(dispute.getDisputeId())).thenReturn(Optional.of(dispute));
         when(decisionRepository.findByDisputeId(any())).thenReturn(Optional.empty());
     }
@@ -76,8 +96,10 @@ class DisputeLifecycleServiceTest {
         CardTransaction candidate = mock(CardTransaction.class);
         when(transactionService.getById(dispute.getTransactionId())).thenReturn(transaction);
         when(transactionService.getById(dispute.getCandidateTransactionId())).thenReturn(candidate);
-        when(matchingService.evaluate(transaction, candidate)).thenReturn(
-                new MatchAssessment(AssessmentOutcome.SUPPORTED, "Same merchant 10 min apart."));
+        when(matchingService.evaluate(transaction, candidate))
+                .thenReturn(
+                        new MatchAssessment(
+                                AssessmentOutcome.SUPPORTED, "Same merchant 10 min apart."));
 
         service.markInReview(dispute.getDisputeId(), "c");
         AssessmentOutcome outcome = service.assess(dispute.getDisputeId(), "c");
@@ -89,20 +111,44 @@ class DisputeLifecycleServiceTest {
 
         ArgumentCaptor<DisputeDecision> decision = ArgumentCaptor.forClass(DisputeDecision.class);
         verify(decisionRepository).save(decision.capture());
-        assertThat(decision.getValue().getDecisionType()).isEqualTo(DecisionType.DUPLICATE_SUPPORTED);
+        assertThat(decision.getValue().getDecisionType())
+                .isEqualTo(DecisionType.DUPLICATE_SUPPORTED);
         assertThat(decision.getValue().getDecisionSource()).isEqualTo(DecisionSource.AUTOMATED);
-        assertThat(decision.getValue().getRationale()).isEqualTo("Automated assessment: Same merchant 10 min apart.");
+        assertThat(decision.getValue().getRationale())
+                .isEqualTo("Automated assessment: Same merchant 10 min apart.");
         assertThat(decision.getValue().getDecidedBy()).isEqualTo("SYSTEM");
 
         InOrder audit = inOrder(auditService);
-        audit.verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.STATE_CHANGED),
-                eq(DisputeStatus.SUBMITTED), eq(DisputeStatus.IN_REVIEW), eq("SYSTEM"), eq("c"), isNull(), eq(NOW));
-        audit.verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.ASSESSED),
-                eq(DisputeStatus.IN_REVIEW), eq(DisputeStatus.IN_REVIEW), eq("SYSTEM"), eq("c"),
-                eq("SUPPORTED: Same merchant 10 min apart."), eq(NOW));
-        audit.verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.DECIDED),
-                eq(DisputeStatus.IN_REVIEW), eq(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED), eq("SYSTEM"), eq("c"),
-                startsWith("DUPLICATE_SUPPORTED: Automated assessment"), eq(NOW));
+        audit.verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.STATE_CHANGED),
+                        eq(DisputeStatus.SUBMITTED),
+                        eq(DisputeStatus.IN_REVIEW),
+                        eq("SYSTEM"),
+                        eq("c"),
+                        isNull(),
+                        eq(NOW));
+        audit.verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.ASSESSED),
+                        eq(DisputeStatus.IN_REVIEW),
+                        eq(DisputeStatus.IN_REVIEW),
+                        eq("SYSTEM"),
+                        eq("c"),
+                        eq("SUPPORTED: Same merchant 10 min apart."),
+                        eq(NOW));
+        audit.verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.DECIDED),
+                        eq(DisputeStatus.IN_REVIEW),
+                        eq(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED),
+                        eq("SYSTEM"),
+                        eq("c"),
+                        startsWith("DUPLICATE_SUPPORTED: Automated assessment"),
+                        eq(NOW));
         verifyNoMoreInteractions(auditService);
     }
 
@@ -112,8 +158,9 @@ class DisputeLifecycleServiceTest {
         CardTransaction candidate = mock(CardTransaction.class);
         when(transactionService.getById(dispute.getTransactionId())).thenReturn(transaction);
         when(transactionService.getById(dispute.getCandidateTransactionId())).thenReturn(candidate);
-        when(matchingService.evaluate(transaction, candidate)).thenReturn(
-                new MatchAssessment(AssessmentOutcome.NOT_SUPPORTED, "Amounts differ."));
+        when(matchingService.evaluate(transaction, candidate))
+                .thenReturn(
+                        new MatchAssessment(AssessmentOutcome.NOT_SUPPORTED, "Amounts differ."));
         dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
         dispute.recordAssessment(AssessmentOutcome.SUPPORTED, NOW);
 
@@ -136,9 +183,16 @@ class DisputeLifecycleServiceTest {
 
         service.markAwaitingAnalyst(dispute.getDisputeId(), "c");
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.AWAITING_ANALYST);
-        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.STATE_CHANGED),
-                eq(DisputeStatus.IN_REVIEW), eq(DisputeStatus.AWAITING_ANALYST), eq("SYSTEM"), eq("c"), isNull(),
-                eq(NOW));
+        verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.STATE_CHANGED),
+                        eq(DisputeStatus.IN_REVIEW),
+                        eq(DisputeStatus.AWAITING_ANALYST),
+                        eq("SYSTEM"),
+                        eq("c"),
+                        isNull(),
+                        eq(NOW));
     }
 
     @Test
@@ -154,28 +208,48 @@ class DisputeLifecycleServiceTest {
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.IN_REVIEW);
         // A retried step must not duplicate the audit entry
-        verify(auditService, times(1)).record(any(), eq(AuditEventType.STATE_CHANGED), any(), any(), any(), any(),
-                any(), any());
+        verify(auditService, times(1))
+                .record(
+                        any(),
+                        eq(AuditEventType.STATE_CHANGED),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any());
     }
 
     @Test
     void analystResolvesAwaitingDispute() {
         awaitingAnalyst();
 
-        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.DUPLICATE_SUPPORTED,
-                "  Same receipt on both charges  ", "analyst001", "c");
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.DUPLICATE_SUPPORTED,
+                "  Same receipt on both charges  ",
+                "analyst001",
+                "c");
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED);
         assertThat(dispute.getResolvedAt()).isEqualTo(NOW);
         ArgumentCaptor<DisputeDecision> decision = ArgumentCaptor.forClass(DisputeDecision.class);
         verify(decisionRepository).save(decision.capture());
-        assertThat(decision.getValue().getDecisionType()).isEqualTo(DecisionType.DUPLICATE_SUPPORTED);
+        assertThat(decision.getValue().getDecisionType())
+                .isEqualTo(DecisionType.DUPLICATE_SUPPORTED);
         assertThat(decision.getValue().getDecisionSource()).isEqualTo(DecisionSource.ANALYST);
         assertThat(decision.getValue().getRationale()).isEqualTo("Same receipt on both charges");
         assertThat(decision.getValue().getDecidedBy()).isEqualTo("analyst001");
-        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.DECIDED),
-                eq(DisputeStatus.AWAITING_ANALYST), eq(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED),
-                eq("analyst001"), eq("c"), eq("DUPLICATE_SUPPORTED: Same receipt on both charges"), eq(NOW));
+        verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.DECIDED),
+                        eq(DisputeStatus.AWAITING_ANALYST),
+                        eq(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED),
+                        eq("analyst001"),
+                        eq("c"),
+                        eq("DUPLICATE_SUPPORTED: Same receipt on both charges"),
+                        eq(NOW));
     }
 
     @Test
@@ -183,8 +257,12 @@ class DisputeLifecycleServiceTest {
         awaitingAnalyst();
         service.markReviewTimedOut(dispute.getDisputeId(), "c");
 
-        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
-                "analyst001", "c");
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "c");
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_NOT_SUPPORTED);
     }
@@ -194,8 +272,12 @@ class DisputeLifecycleServiceTest {
         dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
         dispute.recordAssessment(AssessmentOutcome.MANUAL_REVIEW, NOW);
 
-        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
-                "analyst001", "c");
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "c");
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.RESOLVED_NOT_SUPPORTED);
     }
@@ -204,12 +286,23 @@ class DisputeLifecycleServiceTest {
     void analystDecisionRequiresRationale() {
         awaitingAnalyst();
 
-        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED, "   ", "analyst001"))
+        assertThatThrownBy(
+                        () ->
+                                service.validateAnalystDecision(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        "   ",
+                                        "analyst001"))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "RATIONALE_REQUIRED");
-        assertThatThrownBy(() -> service.resolveByAnalyst(dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED, null, "analyst001", "c"))
+        assertThatThrownBy(
+                        () ->
+                                service.resolveByAnalyst(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        null,
+                                        "analyst001",
+                                        "c"))
                 .isInstanceOf(BusinessRuleViolationException.class);
         verify(decisionRepository, never()).save(any());
     }
@@ -218,8 +311,13 @@ class DisputeLifecycleServiceTest {
     void analystDecisionRejectsTooLongRationale() {
         awaitingAnalyst();
 
-        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED, "x".repeat(1001), "analyst001"))
+        assertThatThrownBy(
+                        () ->
+                                service.validateAnalystDecision(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        "x".repeat(1001),
+                                        "analyst001"))
                 .isInstanceOf(BusinessRuleViolationException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "RATIONALE_TOO_LONG");
     }
@@ -230,8 +328,13 @@ class DisputeLifecycleServiceTest {
         dispute.recordAssessment(AssessmentOutcome.SUPPORTED, NOW);
         dispute.transitionTo(DisputeStatus.RESOLVED_DUPLICATE_SUPPORTED, NOW);
 
-        assertThatThrownBy(() -> service.validateAnalystDecision(dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED, "Override", "analyst001"))
+        assertThatThrownBy(
+                        () ->
+                                service.validateAnalystDecision(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        "Override",
+                                        "analyst001"))
                 .isInstanceOf(ConflictException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "DISPUTE_ALREADY_RESOLVED");
     }
@@ -241,8 +344,14 @@ class DisputeLifecycleServiceTest {
         dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
         dispute.recordAssessment(AssessmentOutcome.SUPPORTED, NOW);
 
-        assertThatThrownBy(() -> service.resolveByAnalyst(dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED, "Override", "analyst001", "c"))
+        assertThatThrownBy(
+                        () ->
+                                service.resolveByAnalyst(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        "Override",
+                                        "analyst001",
+                                        "c"))
                 .isInstanceOf(ConflictException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "MANUAL_REVIEW_NOT_REQUIRED");
         verify(decisionRepository, never()).save(any());
@@ -252,12 +361,23 @@ class DisputeLifecycleServiceTest {
     void retriedAnalystResolutionIsNoOp() {
         awaitingAnalyst();
         dispute.transitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED, NOW);
-        when(decisionRepository.findByDisputeId(dispute.getDisputeId())).thenReturn(Optional.of(
-                DisputeDecision.of(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, DecisionSource.ANALYST,
-                        "Different purchases", "analyst001", NOW)));
+        when(decisionRepository.findByDisputeId(dispute.getDisputeId()))
+                .thenReturn(
+                        Optional.of(
+                                DisputeDecision.of(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        DecisionSource.ANALYST,
+                                        "Different purchases",
+                                        "analyst001",
+                                        NOW)));
 
-        service.resolveByAnalyst(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
-                "analyst001", "c");
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "c");
 
         verify(decisionRepository, never()).save(any());
         verifyNoInteractions(auditService);
@@ -267,7 +387,10 @@ class DisputeLifecycleServiceTest {
     void validationDoesNotChangeTheDispute() {
         awaitingAnalyst();
 
-        service.validateAnalystDecision(dispute.getDisputeId(), DecisionType.NOT_SUPPORTED, "Different purchases",
+        service.validateAnalystDecision(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
                 "analyst001");
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.AWAITING_ANALYST);
@@ -283,9 +406,16 @@ class DisputeLifecycleServiceTest {
 
         assertThat(dispute.getStatus()).isEqualTo(DisputeStatus.TIMEOUT_REVIEW_REQUIRED);
         assertThat(dispute.getStatus().isOpen()).isTrue();
-        verify(auditService).record(eq(dispute.getDisputeId()), eq(AuditEventType.STATE_CHANGED),
-                eq(DisputeStatus.AWAITING_ANALYST), eq(DisputeStatus.TIMEOUT_REVIEW_REQUIRED), eq("SYSTEM"),
-                eq("c"), eq("Analyst review deadline reached"), eq(NOW));
+        verify(auditService)
+                .record(
+                        eq(dispute.getDisputeId()),
+                        eq(AuditEventType.STATE_CHANGED),
+                        eq(DisputeStatus.AWAITING_ANALYST),
+                        eq(DisputeStatus.TIMEOUT_REVIEW_REQUIRED),
+                        eq("SYSTEM"),
+                        eq("c"),
+                        eq("Analyst review deadline reached"),
+                        eq(NOW));
     }
 
     @Test
@@ -299,42 +429,34 @@ class DisputeLifecycleServiceTest {
         verifyNoInteractions(auditService);
     }
 
-
     @Test
     void retriedAnalystResolutionWithDifferentDecisionIsRejected() {
 
         awaitingAnalyst();
 
-        dispute.transitionTo(
-                DisputeStatus.RESOLVED_NOT_SUPPORTED,
-                NOW
-        );
+        dispute.transitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED, NOW);
 
-        when(decisionRepository.findByDisputeId(
-                dispute.getDisputeId()
-        )).thenReturn(Optional.of(
-                DisputeDecision.of(
-                        dispute.getDisputeId(),
-                        DecisionType.NOT_SUPPORTED,
-                        DecisionSource.ANALYST,
-                        "Different purchases",
-                        "analyst001",
-                        NOW
-                )
-        ));
+        when(decisionRepository.findByDisputeId(dispute.getDisputeId()))
+                .thenReturn(
+                        Optional.of(
+                                DisputeDecision.of(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        DecisionSource.ANALYST,
+                                        "Different purchases",
+                                        "analyst001",
+                                        NOW)));
 
-        assertThatThrownBy(() -> service.resolveByAnalyst(
-                dispute.getDisputeId(),
-                DecisionType.DUPLICATE_SUPPORTED,
-                "Different purchases",
-                "analyst001",
-                "c"
-        ))
+        assertThatThrownBy(
+                        () ->
+                                service.resolveByAnalyst(
+                                        dispute.getDisputeId(),
+                                        DecisionType.DUPLICATE_SUPPORTED,
+                                        "Different purchases",
+                                        "analyst001",
+                                        "c"))
                 .isInstanceOf(ConflictException.class)
-                .hasFieldOrPropertyWithValue(
-                        "errorCode",
-                        "MANUAL_DECISION_CONFLICT"
-                );
+                .hasFieldOrPropertyWithValue("errorCode", "MANUAL_DECISION_CONFLICT");
 
         verify(decisionRepository, never()).save(any());
         verifyNoInteractions(auditService);
@@ -345,43 +467,121 @@ class DisputeLifecycleServiceTest {
 
         awaitingAnalyst();
 
-        dispute.transitionTo(
-                DisputeStatus.RESOLVED_NOT_SUPPORTED,
-                NOW
-        );
+        dispute.transitionTo(DisputeStatus.RESOLVED_NOT_SUPPORTED, NOW);
 
-        when(decisionRepository.findByDisputeId(
-                dispute.getDisputeId()
-        )).thenReturn(Optional.of(
-                DisputeDecision.of(
-                        dispute.getDisputeId(),
-                        DecisionType.NOT_SUPPORTED,
-                        DecisionSource.ANALYST,
-                        "Different purchases",
-                        "analyst001",
-                        NOW
-                )
-        ));
+        when(decisionRepository.findByDisputeId(dispute.getDisputeId()))
+                .thenReturn(
+                        Optional.of(
+                                DisputeDecision.of(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        DecisionSource.ANALYST,
+                                        "Different purchases",
+                                        "analyst001",
+                                        NOW)));
 
-        assertThatThrownBy(() -> service.resolveByAnalyst(
-                dispute.getDisputeId(),
-                DecisionType.NOT_SUPPORTED,
-                "Different purchases",
-                "analyst002",
-                "c"
-        ))
+        assertThatThrownBy(
+                        () ->
+                                service.resolveByAnalyst(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        "Different purchases",
+                                        "analyst002",
+                                        "c"))
                 .isInstanceOf(ConflictException.class)
-                .hasFieldOrPropertyWithValue(
-                        "errorCode",
-                        "MANUAL_DECISION_CONFLICT"
-                );
+                .hasFieldOrPropertyWithValue("errorCode", "MANUAL_DECISION_CONFLICT");
 
         verify(decisionRepository, never()).save(any());
         verifyNoInteractions(auditService);
     }
 
+    @Test
+    void automaticResolutionCreatesOutboxEvent() {
 
-    /** Puts the test dispute in AWAITING_ANALYST with a MANUAL_REVIEW assessment, without audit calls. */
+        CardTransaction transaction = mock(CardTransaction.class);
+        CardTransaction candidate = mock(CardTransaction.class);
+
+        when(transactionService.getById(dispute.getTransactionId())).thenReturn(transaction);
+
+        when(transactionService.getById(dispute.getCandidateTransactionId())).thenReturn(candidate);
+
+        when(matchingService.evaluate(transaction, candidate))
+                .thenReturn(
+                        new MatchAssessment(
+                                AssessmentOutcome.SUPPORTED, "Same merchant 10 min apart."));
+
+        service.markInReview(dispute.getDisputeId(), "corr-auto");
+        service.assess(dispute.getDisputeId(), "corr-auto");
+        service.resolveAutomatically(dispute.getDisputeId(), "corr-auto");
+
+        ArgumentCaptor<DisputeResolvedEvent> captor =
+                ArgumentCaptor.forClass(DisputeResolvedEvent.class);
+
+        verify(notificationOutboxService, times(1)).saveDisputeResolvedEvent(captor.capture());
+
+        DisputeResolvedEvent event = captor.getValue();
+
+        assertThat(event.eventId()).isNotNull();
+        assertThat(event.eventType()).isEqualTo("DISPUTE_RESOLVED");
+        assertThat(event.disputeId()).isEqualTo(dispute.getDisputeId());
+        assertThat(event.customerId()).isEqualTo(dispute.getCustomerId());
+        assertThat(event.outcome()).isEqualTo("SUPPORTED");
+        assertThat(event.occurredAt()).isEqualTo(NOW);
+        assertThat(event.correlationId()).isEqualTo("corr-auto");
+    }
+
+    @Test
+    void manualResolutionCreatesOneOutboxEvent() {
+
+        awaitingAnalyst();
+
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "corr-manual");
+
+        ArgumentCaptor<DisputeResolvedEvent> captor =
+                ArgumentCaptor.forClass(DisputeResolvedEvent.class);
+
+        verify(notificationOutboxService, times(1)).saveDisputeResolvedEvent(captor.capture());
+
+        DisputeResolvedEvent event = captor.getValue();
+
+        assertThat(event.eventId()).isNotNull();
+        assertThat(event.eventType()).isEqualTo("DISPUTE_RESOLVED");
+        assertThat(event.disputeId()).isEqualTo(dispute.getDisputeId());
+        assertThat(event.customerId()).isEqualTo(dispute.getCustomerId());
+        assertThat(event.outcome()).isEqualTo("NOT_SUPPORTED");
+        assertThat(event.occurredAt()).isEqualTo(NOW);
+        assertThat(event.correlationId()).isEqualTo("corr-manual");
+
+        when(decisionRepository.findByDisputeId(dispute.getDisputeId()))
+                .thenReturn(
+                        java.util.Optional.of(
+                                DisputeDecision.of(
+                                        dispute.getDisputeId(),
+                                        DecisionType.NOT_SUPPORTED,
+                                        DecisionSource.ANALYST,
+                                        "Different purchases",
+                                        "analyst001",
+                                        NOW)));
+
+        service.resolveByAnalyst(
+                dispute.getDisputeId(),
+                DecisionType.NOT_SUPPORTED,
+                "Different purchases",
+                "analyst001",
+                "corr-manual");
+
+        verify(notificationOutboxService, times(1)).saveDisputeResolvedEvent(any());
+    }
+
+    /**
+     * Puts the test dispute in AWAITING_ANALYST with a MANUAL_REVIEW assessment, without audit
+     * calls.
+     */
     private void awaitingAnalyst() {
         dispute.transitionTo(DisputeStatus.IN_REVIEW, NOW);
         dispute.recordAssessment(AssessmentOutcome.MANUAL_REVIEW, NOW);

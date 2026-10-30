@@ -1,16 +1,15 @@
-
 package com.techmahindra.carddispute.workflow.delegate;
 
-import com.techmahindra.carddispute.dispute.entity.DecisionType;
-import com.techmahindra.carddispute.dispute.service.ManualReviewDecisionService;
-
-import lombok.RequiredArgsConstructor;
+import java.util.UUID;
 
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
+import com.techmahindra.carddispute.dispute.entity.DecisionType;
+import com.techmahindra.carddispute.dispute.service.ManualReviewDecisionService;
+
+import lombok.RequiredArgsConstructor;
 
 @Component("resolveManualReviewDelegate")
 @RequiredArgsConstructor
@@ -21,54 +20,28 @@ public class ResolveManualReviewDelegate implements JavaDelegate {
     @Override
     public void execute(DelegateExecution execution) {
 
-        UUID disputeId = UUID.fromString(
-                execution.getBusinessKey()
-        );
+        UUID disputeId = UUID.fromString(execution.getBusinessKey());
 
-        String decisionValue = requiredVariable(
-                execution,
-                "analystDecision"
-        );
+        String decisionValue = requiredVariable(execution, "analystDecision");
 
-        String analystUsername = requiredVariable(
-                execution,
-                "analystUsername"
-        );
+        String analystUsername = requiredVariable(execution, "analystUsername");
 
-        String comment = requiredVariable(
-                execution,
-                "analystComment"
-        );
+        String comment = requiredVariable(execution, "analystComment");
 
-        String correlationId = requiredVariable(
-                execution,
-                "manualReviewCorrelationId"
-        );
+        String correlationId = requiredVariable(execution, "manualReviewCorrelationId");
 
-        DecisionType decision = DecisionType.valueOf(
-                decisionValue
-        );
+        DecisionType decision = DecisionType.valueOf(decisionValue);
 
         decisionService.resolveManually(
-                disputeId,
-                decision,
-                comment,
-                analystUsername,
-                correlationId
-        );
+                disputeId, decision, comment, analystUsername, correlationId);
     }
 
-    private static String requiredVariable(
-            DelegateExecution execution,
-            String name) {
+    private static String requiredVariable(DelegateExecution execution, String name) {
 
         Object value = execution.getVariable(name);
 
-        if (!(value instanceof String text)
-                || text.isBlank()) {
-            throw new IllegalStateException(
-                    "Required workflow variable is missing: " + name
-            );
+        if (!(value instanceof String text) || text.isBlank()) {
+            throw new IllegalStateException("Required workflow variable is missing: " + name);
         }
 
         return text;

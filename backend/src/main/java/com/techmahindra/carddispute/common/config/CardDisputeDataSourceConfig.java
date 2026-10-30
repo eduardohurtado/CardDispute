@@ -1,27 +1,26 @@
 package com.techmahindra.carddispute.common.config;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.sql.DataSource;
+
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import javax.sql.DataSource;
-import java.util.HashMap;
-import java.util.Map;
-
 @Configuration
 @EnableJpaRepositories(
-        basePackages = "com.techmahindra.carddispute.*.repository"
-        , entityManagerFactoryRef = "cardDisputeEntityManagerFactory"
-        , transactionManagerRef = "cardDisputeTransactionManager"
-)
+        basePackages = "com.techmahindra.carddispute.*.repository",
+        entityManagerFactoryRef = "cardDisputeEntityManagerFactory",
+        transactionManagerRef = "cardDisputeTransactionManager")
 public class CardDisputeDataSourceConfig {
 
     @Bean("cardDisputeDataSource")
@@ -56,7 +55,8 @@ public class CardDisputeDataSourceConfig {
 
     @Bean(name = "cardDisputeTransactionManager")
     public PlatformTransactionManager cardDisputeTransactionManager(
-            @Qualifier("cardDisputeEntityManagerFactory") LocalContainerEntityManagerFactoryBean entityManagerFactory) {
+            @Qualifier("cardDisputeEntityManagerFactory")
+                    LocalContainerEntityManagerFactoryBean entityManagerFactory) {
         return new JpaTransactionManager(entityManagerFactory.getObject());
     }
 }

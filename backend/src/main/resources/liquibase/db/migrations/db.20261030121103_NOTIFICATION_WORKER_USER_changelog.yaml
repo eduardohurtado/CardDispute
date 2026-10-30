@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20261030121103
+      author: juliann1285
+      comment: Add NOTIFICATION_WORKER role and technical application account
+      changes:
+        - sqlFile:
+            path: ../sql/006-Notification-worker-user.sql
+            relativeToChangelogFile: true
+            splitStatements: false
