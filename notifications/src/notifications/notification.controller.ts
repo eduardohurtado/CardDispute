@@ -11,6 +11,7 @@ import { NOTIFICATION_TOPIC_V1 } from '../config/constants.js';
 import { MessageQueueService } from '../message-queue/message-queue.service.js';
 import { NotificationService } from './notification.service.js';
 import { isRetryableError } from '../errors/notification-error.js';
+import { NotificationReceiptConflict } from '../api/api.errors.js';
 
 @Controller()
 export class NotificationController {
@@ -41,6 +42,10 @@ export class NotificationController {
         `Failed to process notification for dispute ${event.disputeId}`,
         error,
       );
+      if (error instanceof NotificationReceiptConflict) {
+        await this.#queueService.sendToDLQ(channel, message);
+        return;
+      }
       const hasExceededRetries =
         await this.#queueService.hasExceededRetries(message);
       const shouldRetry = isRetryableError(error) && !hasExceededRetries;
