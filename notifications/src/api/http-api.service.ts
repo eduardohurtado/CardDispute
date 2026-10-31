@@ -1,47 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CreateNotificationDeliveryPayload,
-  IApi,
-  NotificationDelivery,
-} from './api.contract.js';
 import { ConfigService } from '@nestjs/config';
 import { EnvVars } from '../config/env.js';
 import {
+  CreateNotificationDeliveryPayload,
+  IApi,
+} from './api.contract.js';
+import {
   NotificationDeliveryCreationError,
-  NotificationDeliveryError,
-  NotificationDeliveryNotFound,
+  NotificationReceiptConflict,
 } from './api.errors.js';
 import { getCorrelationId } from '../interceptors/correlation.interceptor.js';
 
 const API_TIMEOUT_MS = 5000;
-// The backend deduplicates deliveries by idempotency key and answers with the
-// existing record, which means the delivery was already created.
-const ALREADY_CREATED_STATUS = 409;
+const CONFLICT_STATUS = 409;
 
 @Injectable()
 export class HttpApiService implements IApi {
   constructor(private readonly config: ConfigService<EnvVars, true>) {}
-
-  async fetchNotification(eventId: string): Promise<NotificationDelivery> {
-    let res: Response;
-    try {
-      const correlationId = getCorrelationId();
-      res = await fetch(`${this.#baseUrl()}/notifications/${eventId}`, {
-        headers: { ...this.#headers(), 'X-Correlation-Id': correlationId },
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
-      });
-    } catch (cause) {
-      throw new NotificationDeliveryError(null, { cause });
-    }
-
-    if (res.status === 404) {
-      throw new NotificationDeliveryNotFound(eventId);
-    }
-    if (!res.ok) {
-      throw new NotificationDeliveryError(res.status);
-    }
-    return res.json();
-  }
 
   async createNotification(
     payload: CreateNotificationDeliveryPayload,
@@ -49,12 +24,11 @@ export class HttpApiService implements IApi {
     let res: Response;
     try {
       const correlationId = getCorrelationId();
-      res = await fetch(`${this.#baseUrl()}/notifications`, {
+      res = await fetch(`${this.#baseUrl()}/internal/v1/notification-receipts`, {
         method: 'POST',
         headers: {
           ...this.#headers(),
           'Content-Type': 'application/json',
-          'Idempotency-Key': payload.eventId,
           'X-Correlation-Id': correlationId,
         },
         body: JSON.stringify(payload),
@@ -66,8 +40,8 @@ export class HttpApiService implements IApi {
       });
     }
 
-    if (res.status === ALREADY_CREATED_STATUS) {
-      return;
+    if (res.status === CONFLICT_STATUS) {
+      throw new NotificationReceiptConflict(payload.eventId);
     }
     if (!res.ok) {
       throw new NotificationDeliveryCreationError(
@@ -78,14 +52,20 @@ export class HttpApiService implements IApi {
   }
 
   #headers() {
+    const username = this.config.getOrThrow<string>(
+      'BACKEND_BASIC_AUTH_USERNAME',
+    );
+    const password = this.config.getOrThrow<string>(
+      'BACKEND_BASIC_AUTH_PASSWORD',
+    );
     return {
-      Authentication: this.config.getOrThrow<string>(
-        'BACKEND_AUTHORIZATION_KEY',
-      ),
+      Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
     };
   }
 
   #baseUrl() {
-    return this.config.getOrThrow<string>('BACKEND_API_BASE_URL');
+    return this.config
+      .getOrThrow<string>('BACKEND_API_BASE_URL')
+      .replace(/\/+$/, '');
   }
 }

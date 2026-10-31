@@ -2,7 +2,6 @@ import { Channel, Message } from 'amqplib';
 import {
   CreateNotificationDeliveryPayload,
   IApi,
-  NotificationDelivery,
 } from '../../src/api/api.contract.js';
 import {
   INotificationChannel,
@@ -10,19 +9,8 @@ import {
 } from '../../src/notifications/channels/channel.interface.js';
 
 export class FakeApi implements IApi {
-  deliveries = new Map<string, NotificationDelivery>();
-  fetchError: unknown;
   createError: unknown;
-  fetchCalls: string[] = [];
   createCalls: CreateNotificationDeliveryPayload[] = [];
-
-  async fetchNotification(eventId: string) {
-    this.fetchCalls.push(eventId);
-    if (this.fetchError) throw this.fetchError;
-    const delivery = this.deliveries.get(eventId);
-    if (!delivery) throw new Error(`No delivery stubbed for ${eventId}`);
-    return delivery;
-  }
 
   async createNotification(payload: CreateNotificationDeliveryPayload) {
     this.createCalls.push(payload);
@@ -120,14 +108,3 @@ export const rmqContext = (msg: Message): RmqContext => {
     },
   };
 };
-
-export const delivery = (
-  overrides: Partial<NotificationDelivery> = {},
-): NotificationDelivery => ({
-  event_id: 'evt-1',
-  dispute_id: 'disp-1',
-  status: 'FAILED',
-  provider_ref: 'prov-1',
-  error_code: '',
-  ...overrides,
-});

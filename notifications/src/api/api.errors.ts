@@ -18,12 +18,6 @@ export class NotificationApiError extends NotificationError {
   }
 }
 
-export class NotificationDeliveryNotFound extends NotificationApiError {
-  constructor(eventId: string) {
-    super(`Notification ${eventId} not found`, 'DELIVERY_NOT_FOUND', 404);
-  }
-}
-
 export class NotificationDeliveryCreationError extends NotificationApiError {
   constructor(
     disputeId: string,
@@ -39,13 +33,12 @@ export class NotificationDeliveryCreationError extends NotificationApiError {
   }
 }
 
-export class NotificationDeliveryError extends NotificationApiError {
-  constructor(status: number | null = null, options?: { cause?: unknown }) {
+export class NotificationReceiptConflict extends NotificationApiError {
+  constructor(eventId: string) {
     super(
-      'Failed to fetch notification delivery',
-      'DELIVERY_FETCH_FAILED',
-      status,
-      options,
+      `Conflicting notification receipt for event ${eventId}`,
+      'RECEIPT_CONFLICT',
+      409,
     );
   }
 }

@@ -1,17 +1,9 @@
-export interface NotificationDelivery {
-  event_id: string;
-  dispute_id: string;
-  status: 'DELIVERED' | 'FAILED';
-  provider_ref: string;
-  error_code: string;
-}
-
-export type NotificationDeliveryStatus = NotificationDelivery['status'];
+export type NotificationDeliveryStatus = 'DELIVERED' | 'FAILED';
 
 export interface CreateNotificationDeliveryPayload {
   eventId: string;
   disputeId: string;
-  channel: string;
+  channel: 'MOCK_EMAIL';
   status: NotificationDeliveryStatus;
   processedAt: string;
   providerRef?: string;
@@ -19,7 +11,6 @@ export interface CreateNotificationDeliveryPayload {
 }
 
 export interface IApi {
-  fetchNotification(eventId: string): Promise<NotificationDelivery>;
   createNotification(payload: CreateNotificationDeliveryPayload): Promise<void>;
 }
 

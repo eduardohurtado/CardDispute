@@ -4,15 +4,17 @@ import {
   NotificationService,
 } from './notification.service.js';
 import { DisputeResolvedEvent } from '../types.js';
-import { NotificationDeliveryNotFound } from '../api/api.errors.js';
 import { NotificationError } from '../errors/notification-error.js';
-import { FakeApi, FakeChannel, delivery } from '../../test/support/fakes.js';
+import { FakeApi, FakeChannel } from '../../test/support/fakes.js';
 
 const event: DisputeResolvedEvent = {
   eventId: 'evt-1',
+  eventType: 'DISPUTE_RESOLVED',
+  occurredAt: '2026-01-01T00:00:00.000Z',
   disputeId: 'disp-1',
-  providerRef: 'prov-1',
+  customerId: 'cust-1',
   outcome: 'SUPPORTED',
+  correlationId: 'corr-1',
 };
 
 const setup = () => {
@@ -23,43 +25,13 @@ const setup = () => {
 };
 
 describe('NotificationService.handleDisputeResolved', () => {
-  it('short-circuits when delivery already exists as DELIVERED', async () => {
-    const { api, channel, service } = setup();
-    api.deliveries.set('evt-1', delivery({ status: 'DELIVERED' }));
-
-    await service.handleDisputeResolved(event);
-
-    expect(channel.sent).toHaveLength(0);
-    expect(api.createCalls).toHaveLength(0);
-  });
-
-  it('proceeds when no delivery exists yet (404)', async () => {
-    const { api, channel, service } = setup();
-    api.fetchError = new NotificationDeliveryNotFound('evt-1');
-
-    await service.handleDisputeResolved(event);
-
-    expect(channel.sent).toHaveLength(1);
-  });
-
-  it('rethrows unexpected fetch errors without sending', async () => {
-    const { api, channel, service } = setup();
-    api.fetchError = new NotificationError('boom', 'BOOM', true);
-
-    await expect(service.handleDisputeResolved(event)).rejects.toThrow('boom');
-    expect(channel.sent).toHaveLength(0);
-    expect(api.createCalls).toHaveLength(0);
-  });
-
   it.each([
     ['SUPPORTED', DUPLICATED_RESOLVED_MESSAGE],
     ['NOT_SUPPORTED', NOT_SUPPORTED_RESOLVED_MESSAGE],
-    ['TIMEOUT', NOT_SUPPORTED_RESOLVED_MESSAGE],
   ] as const)(
     'sends the message matching outcome %s',
     async (outcome, expectedBody) => {
       const { api, channel, service } = setup();
-      api.fetchError = new NotificationDeliveryNotFound('evt-1');
 
       await service.handleDisputeResolved({ ...event, outcome });
 
@@ -69,25 +41,25 @@ describe('NotificationService.handleDisputeResolved', () => {
           body: expectedBody,
         },
       ]);
+      expect(api.createCalls).toHaveLength(1);
     },
   );
 
-  it('records a DELIVERED delivery with the WEB channel and event data', async () => {
+  it('records a DELIVERED delivery with the MOCK_EMAIL channel and event data', async () => {
     const { api, service } = setup();
-    api.fetchError = new NotificationDeliveryNotFound('evt-1');
 
     await service.handleDisputeResolved(event);
 
     expect(api.createCalls).toHaveLength(1);
     const payload = api.createCalls[0]!;
     expect(payload).toMatchObject({
-      channel: 'WEB',
+      channel: 'MOCK_EMAIL',
       status: 'DELIVERED',
       disputeId: 'disp-1',
       eventId: 'evt-1',
-      providerRef: 'prov-1',
+      processedAt: event.occurredAt,
     });
-    expect(() => new Date(payload.processedAt).toISOString()).not.toThrow();
+    expect(payload.providerRef).toBeUndefined();
   });
 });
 
@@ -97,13 +69,15 @@ describe('NotificationService.markDeliveryFailed', () => {
 
     await service.markDeliveryFailed(
       event,
-      new NotificationError('x', 'DELIVERY_FETCH_FAILED', false),
+      new NotificationError('x', 'RECEIPT_CONFLICT', false),
     );
 
     expect(api.createCalls[0]).toMatchObject({
+      channel: 'MOCK_EMAIL',
       status: 'FAILED',
-      errorCode: 'DELIVERY_FETCH_FAILED',
+      errorCode: 'RECEIPT_CONFLICT',
       eventId: 'evt-1',
+      processedAt: event.occurredAt,
     });
   });
 

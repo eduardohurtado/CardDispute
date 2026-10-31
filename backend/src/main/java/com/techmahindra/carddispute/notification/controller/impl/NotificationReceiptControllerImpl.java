@@ -1,14 +1,15 @@
 package com.techmahindra.carddispute.notification.controller.impl;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.techmahindra.carddispute.common.web.CorrelationId;
 import com.techmahindra.carddispute.notification.controller.NotificationReceiptController;
 import com.techmahindra.carddispute.notification.dto.NotificationReceiptRequest;
 import com.techmahindra.carddispute.notification.service.NotificationReceiptService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -22,7 +23,11 @@ public class NotificationReceiptControllerImpl implements NotificationReceiptCon
 
         boolean created = receiptService.registerReceipt(request);
 
-        log.info("Notification receipt registered: {}", created);
+        log.info(
+                "Notification receipt registered: created={}, eventId={}, correlationId={}",
+                created,
+                request.eventId(),
+                CorrelationId.current());
 
         return created ? ResponseEntity.status(201).build() : ResponseEntity.ok().build();
     }

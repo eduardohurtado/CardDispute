@@ -6,7 +6,6 @@ import {
   IApi,
   NotificationDeliveryStatus,
 } from '../api/api.contract.js';
-import { NotificationDeliveryNotFound } from '../api/api.errors.js';
 import { NotificationError } from '../errors/notification-error.js';
 
 export const DUPLICATED_RESOLVED_MESSAGE =
@@ -15,8 +14,8 @@ export const NOT_SUPPORTED_RESOLVED_MESSAGE =
   'We could not support the duplicate charge claim.';
 
 const CHANNELS = {
-  WEB: 'WEB',
-};
+  MOCK_EMAIL: 'MOCK_EMAIL',
+} as const;
 
 const DELIVERED_STATUS: NotificationDeliveryStatus = 'DELIVERED';
 const FAILED_STATUS: NotificationDeliveryStatus = 'FAILED';
@@ -33,14 +32,6 @@ export class NotificationService {
   }
 
   async handleDisputeResolved(event: DisputeResolvedEvent): Promise<void> {
-    const alreadyDelivered = await this.#wasAlreadyDelivered(event.eventId);
-    if (alreadyDelivered) {
-      this.#logger.log(
-        `Notification for dispute ${event.disputeId} already delivered`,
-      );
-      return;
-    }
-
     this.#logger.log(
       `Sending notification for dispute ${event.disputeId} with outcome ${event.outcome}`,
     );
@@ -68,31 +59,18 @@ export class NotificationService {
     }
   }
 
-  async #wasAlreadyDelivered(eventId: string): Promise<boolean> {
-    try {
-      const delivery = await this.api.fetchNotification(eventId);
-      return delivery.status === DELIVERED_STATUS;
-    } catch (error) {
-      if (error instanceof NotificationDeliveryNotFound) {
-        return false;
-      }
-      throw error;
-    }
-  }
-
   async #recordDelivery(
     event: DisputeResolvedEvent,
     status: NotificationDeliveryStatus,
     errorCode?: string,
   ): Promise<void> {
-    const { disputeId, eventId, providerRef } = event;
+    const { disputeId, eventId, occurredAt } = event;
     const payload: CreateNotificationDeliveryPayload = {
-      channel: CHANNELS.WEB,
-      processedAt: new Date().toISOString(),
+      channel: CHANNELS.MOCK_EMAIL,
+      processedAt: occurredAt,
       status,
       disputeId,
       eventId,
-      providerRef,
       errorCode,
     };
     await this.api.createNotification(payload);

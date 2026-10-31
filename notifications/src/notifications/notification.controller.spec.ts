@@ -4,23 +4,25 @@ import { NotificationController } from './notification.controller.js';
 import { NotificationService } from './notification.service.js';
 import { IApi } from '../api/api.contract.js';
 import { INotificationChannel } from './channels/channel.interface.js';
-import { NotificationDeliveryNotFound } from '../api/api.errors.js';
+import { NotificationReceiptConflict } from '../api/api.errors.js';
 import { NotificationError } from '../errors/notification-error.js';
 import { DisputeResolvedEvent } from '../types.js';
 import {
   FakeApi,
   FakeChannel,
   FakeMessageQueueService,
-  delivery,
   message,
   rmqContext,
 } from '../../test/support/fakes.js';
 
 const event: DisputeResolvedEvent = {
   eventId: 'evt-1',
+  eventType: 'DISPUTE_RESOLVED',
+  occurredAt: '2026-01-01T00:00:00.000Z',
   disputeId: 'disp-1',
-  providerRef: 'prov-1',
+  customerId: 'cust-1',
   outcome: 'SUPPORTED',
+  correlationId: 'corr-1',
 };
 
 describe('NotificationController', () => {
@@ -57,18 +59,16 @@ describe('NotificationController', () => {
     );
 
   it('acks the message on success without retrying', async () => {
-    api.deliveries.set('evt-1', delivery({ status: 'DELIVERED' }));
-
     await notify();
 
+    expect(channel.sent).toHaveLength(1);
+    expect(api.createCalls).toHaveLength(1);
     expect(queue.acked).toHaveLength(1);
     expect(queue.retried).toHaveLength(0);
     expect(queue.dlq).toHaveLength(0);
   });
 
   it('retries when a retryable API error occurs and attempts remain', async () => {
-    api.fetchError = new NotificationDeliveryNotFound('evt-1');
-    // delivery 404 is handled inside the service; force a retryable failure
     api.createError = new NotificationError(
       'rate limited',
       'RATE_LIMITED',
@@ -85,7 +85,7 @@ describe('NotificationController', () => {
   });
 
   it('retries unknown (non-NotificationError) errors since they default to retryable', async () => {
-    api.fetchError = new TypeError('socket hang up');
+    api.createError = new TypeError('socket hang up');
 
     await notify();
 
@@ -93,34 +93,44 @@ describe('NotificationController', () => {
     expect(queue.dlq).toHaveLength(0);
   });
 
-  it('marks delivery failed and sends to DLQ on non-retryable errors', async () => {
-    api.fetchError = new NotificationError('bad request', 'BAD_REQUEST', false);
+  it('dead-letters a receipt conflict without retrying or marking failed', async () => {
+    api.createError = new NotificationReceiptConflict('evt-1');
 
     await notify();
 
     expect(queue.retried).toHaveLength(0);
     expect(queue.dlq).toHaveLength(1);
+    expect(queue.acked).toHaveLength(0);
     expect(api.createCalls).toHaveLength(1);
-    expect(api.createCalls[0]).toMatchObject({
+  });
+
+  it('marks delivery failed and sends to DLQ on non-retryable errors', async () => {
+    api.createError = new NotificationError('bad request', 'BAD_REQUEST', false);
+
+    await notify();
+
+    expect(queue.retried).toHaveLength(0);
+    expect(queue.dlq).toHaveLength(1);
+    expect(api.createCalls).toHaveLength(2);
+    expect(api.createCalls[1]).toMatchObject({
       status: 'FAILED',
       errorCode: 'BAD_REQUEST',
     });
   });
 
   it('sends to DLQ when retries are exhausted even for retryable errors', async () => {
-    api.fetchError = new TypeError('timeout');
+    api.createError = new TypeError('timeout');
     queue.exceedsRetries = true;
 
     await notify();
 
     expect(queue.retried).toHaveLength(0);
     expect(queue.dlq).toHaveLength(1);
-    expect(api.createCalls[0]?.errorCode).toBe('UNKNOWN_ERROR');
+    expect(api.createCalls[1]?.errorCode).toBe('UNKNOWN_ERROR');
   });
 
   it('still DLQs the message when markDeliveryFailed itself fails', async () => {
-    api.fetchError = new NotificationError('nope', 'NOPE', false);
-    api.createError = new NotificationError('backend down', 'DOWN', true);
+    api.createError = new NotificationError('nope', 'NOPE', false);
 
     await notify();
 

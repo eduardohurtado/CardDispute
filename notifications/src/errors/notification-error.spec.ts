@@ -5,8 +5,7 @@ import {
 } from './notification-error.js';
 import {
   NotificationDeliveryCreationError,
-  NotificationDeliveryError,
-  NotificationDeliveryNotFound,
+  NotificationReceiptConflict,
 } from '../api/api.errors.js';
 import { NotificationChannelSendError } from '../notifications/channels/channel.errors.js';
 
@@ -43,17 +42,16 @@ describe('isRetryableError', () => {
 
 describe('API error classification', () => {
   it('treats requests that never reached the backend (status null) as retryable', () => {
-    expect(new NotificationDeliveryError(null).retryable).toBe(true);
     expect(new NotificationDeliveryCreationError('disp', null).retryable).toBe(
       true,
     );
   });
 
-  it('classifies delivery lookup 404 as non-retryable', () => {
-    const error = new NotificationDeliveryNotFound('evt-1');
+  it('classifies receipt conflicts as non-retryable', () => {
+    const error = new NotificationReceiptConflict('evt-1');
     expect(error.retryable).toBe(false);
-    expect(error.code).toBe('DELIVERY_NOT_FOUND');
-    expect(error.status).toBe(404);
+    expect(error.code).toBe('RECEIPT_CONFLICT');
+    expect(error.status).toBe(409);
   });
 
   it('classifies retryable HTTP statuses on creation failures as retryable', () => {
