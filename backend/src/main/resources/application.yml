@@ -56,17 +56,17 @@ logging:
 application:
   datasource:
     camunda:
-      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      jdbc-url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
       driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
       username: card_dispute_camunda_login
       password: ${CARD_DISPUTE_CAMUNDA_PASSWORD:changeme}
     card-dispute:
-      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      jdbc-url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
       driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
       username: card_dispute_business_login
       password: ${CARD_DISPUTE_BUSINESS_PASSWORD:changeme}
     liquibase:
-      jdbc-url: jdbc:sqlserver://localhost:1433;databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
+      jdbc-url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=card_dispute_db;encrypt=true;trustServerCertificate=true;
       driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
       username: card_dispute_liquibase_login
       password: ${CARD_DISPUTE_LIQUIBASE_PASSWORD:changeme}

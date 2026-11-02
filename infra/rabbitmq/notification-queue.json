@@ -1,0 +1,9 @@
+{
+  "durable": true,
+  "auto_delete": false,
+  "arguments": {
+    "x-queue-type": "classic",
+    "x-dead-letter-exchange": "card-dispute.events.dlx",
+    "x-dead-letter-routing-key": "card-dispute.notifications.dlq"
+  }
+}

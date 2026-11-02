@@ -67,6 +67,9 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:?RabbitMQ user required}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RabbitMQ password required}
 
+    volumes:
+      - ./rabbitmq/notification-queue.json:/config/notification-queue.json:ro
+
     entrypoint: ["/bin/sh", "-ec"]
 
     command:
@@ -76,7 +79,7 @@ services:
 
         echo "Creating RabbitMQ exchange..."
 
-        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+        curl -sS --fail-with-body --retry 10 --retry-delay 2 \
           -u "$$AUTH" \
           -H "Content-Type: application/json" \
           -X PUT \
@@ -85,16 +88,16 @@ services:
 
         echo "Creating RabbitMQ queue..."
 
-        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+        curl -sS --fail-with-body --retry 10 --retry-delay 2 \
           -u "$$AUTH" \
           -H "Content-Type: application/json" \
           -X PUT \
           "$$API/queues/%2F/card-dispute.notifications" \
-          -d '{"durable":true,"auto_delete":false,"arguments":{"x-queue-type":"classic"}}'
+          --data-binary @/config/notification-queue.json
 
         echo "Creating RabbitMQ binding..."
 
-        curl -fsS --retry 10 --retry-all-errors --retry-delay 2 \
+        curl -sS --fail-with-body --retry 10 --retry-delay 2 \
           -u "$$AUTH" \
           -H "Content-Type: application/json" \
           -X POST \
@@ -123,9 +126,48 @@ services:
       RABBITMQ_EXCHANGE_NAME: card-dispute.events
       RABBITMQ_ROUTING_KEY: dispute.#
       BACKEND_BASIC_AUTH_PASSWORD: ${NOTIFICATION_WORKER_PASSWORD_HASH:?Backend auth password required}
-      BACKEND_API_BASE_URL: ${BACKEND_API_BASE_URL:-http://backend:8080/api}
+      BACKEND_API_BASE_URL: ${NOTIFICATIONS_BACKEND_API_BASE_URL:-http://backend:8080}
 
     depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+  # =========================================
+  # SPRING BOOT BACKEND
+  # =========================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../infra/dockerfiles/backend.Dockerfile
+
+    image: bank-poc-backend:local
+    container_name: bank-poc-backend
+
+    environment:
+      DB_HOST: sqlserver
+      DB_PORT: "1433"
+
+      CARD_DISPUTE_CAMUNDA_PASSWORD: ${CAMUNDA_DB_PASSWORD:?Camunda password required}
+      CARD_DISPUTE_BUSINESS_PASSWORD: ${BUSINESS_DB_PASSWORD:?Business password required}
+      CARD_DISPUTE_LIQUIBASE_PASSWORD: ${LIQUIBASE_DB_PASSWORD:?Liquibase password required}
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:?RabbitMQ user required}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RabbitMQ password required}
+      RABBITMQ_VHOST: "/"
+
+      NOTIFICATION_OUTBOX_ENABLED: "false"
+      NOTIFICATION_WORKER_PASSWORD_HASH: ${NOTIFICATION_WORKER_PASSWORD_HASH:?Notification worker password required}
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
 
@@ -166,7 +208,7 @@ services:
       context: ../frontend
       dockerfile: ../frontend/Dockerfile
       args:
-        VITE_API_URL: ${BACKEND_API_BASE_URL:-http://backend:8080/api}
+        VITE_API_URL: /api
     ports:
       - 3000:3000
     restart: unless-stopped
